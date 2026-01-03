@@ -80,7 +80,7 @@ async function setupToken(): Promise<void> {
   } else {
     // Check for existing DCR tokens
     const { loadDcrTokens } = await import('./dcr-token-helper.ts');
-    let existingDcrToken = await loadDcrTokens('google');
+    let existingDcrToken = await loadDcrTokens();
 
     // Try to refresh if token exists but is expired
     if (existingDcrToken && existingDcrToken.providerExpiresAt <= Date.now()) {
