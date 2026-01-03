@@ -1,4 +1,4 @@
-import '../../lib/env-loader.js';
+import '../../lib/env-loader.ts';
 
 /**
  * DcrOAuthProvider Tests
@@ -12,12 +12,11 @@ import '../../lib/env-loader.js';
 import type { ProviderTokens } from '@mcp-z/oauth';
 import assert from 'assert';
 import { DcrOAuthProvider } from '../../../src/providers/dcr.ts';
+import { GOOGLE_SCOPE } from '../../constants.ts';
 import { createConfig } from '../../lib/config.ts';
 import { logger } from '../../lib/test-utils.ts';
 
 const config = createConfig();
-
-const GOOGLE_SCOPE = 'openid https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/gmail.readonly';
 
 // Mock provider tokens for testing
 const createMockTokens = (): ProviderTokens => ({

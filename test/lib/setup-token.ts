@@ -15,20 +15,10 @@ import { KeyvFile } from 'keyv-file';
 import * as path from 'path';
 import { LoopbackOAuthProvider } from '../../src/providers/loopback-oauth.ts';
 import { createConfig } from '../../src/setup/config.ts';
+import { GOOGLE_SCOPE } from '../constants.ts';
 import { logger } from './test-utils.ts';
 
 const config = createConfig();
-
-// Read scope from environment variable (set in .env.test)
-function requireEnv(name: string): string {
-  const value = process.env[name];
-  if (!value) {
-    throw new Error(`${name} environment variable is required. Check .env.test`);
-  }
-  return value;
-}
-
-const GOOGLE_SCOPE = requireEnv('GOOGLE_SCOPE');
 
 async function setupToken(): Promise<void> {
   console.log('🔐 Google OAuth Test Token Setup');

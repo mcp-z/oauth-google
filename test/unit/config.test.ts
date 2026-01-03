@@ -1,4 +1,4 @@
-import '../lib/env-loader.js';
+import '../lib/env-loader.ts';
 
 import assert from 'assert';
 import * as fs from 'fs';
