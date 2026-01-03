@@ -1,4 +1,4 @@
-import '../../lib/env-loader.js';
+import '../../lib/env-loader.ts';
 
 /**
  * DCR Utils Provider Token Tests

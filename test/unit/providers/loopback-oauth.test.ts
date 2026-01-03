@@ -1,4 +1,4 @@
-import '../../lib/env-loader.js';
+import '../../lib/env-loader.ts';
 
 /**
  * LoopbackOAuthProvider Tests
@@ -14,12 +14,11 @@ import Keyv from 'keyv';
 import { KeyvFile } from 'keyv-file';
 import * as path from 'path';
 import { LoopbackOAuthProvider } from '../../../src/providers/loopback-oauth.ts';
+import { GOOGLE_SCOPE } from '../../constants.ts';
 import { createConfig } from '../../lib/config.ts';
 import { logger } from '../../lib/test-utils.ts';
 
 const config = createConfig();
-
-const GOOGLE_SCOPE = 'openid https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/spreadsheets.readonly';
 
 // Use isolated test token directory
 // Run `npm run test:setup` first to generate tokens

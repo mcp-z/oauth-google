@@ -23,8 +23,16 @@ npm install @mcp-z/oauth-google keyv
 3. Enable the API you need (Gmail, Drive, or Sheets).
 4. Create OAuth 2.0 credentials (Desktop app).
 5. Copy the Client ID and Client Secret.
+6. Select your MCP transport (stdio for local and http for remote) and platform
+- For stdio, choose "APIs & Services", + Create client, "Desktop app" type
+- For http, choose "APIs & Services", + Create client, "Web application" type, add your URL (default is http://localhost:3000/oauth/callback based on the --port or PORT)
+- For local hosting, add "http://127.0.0.1" for [Ephemeral redirect URL](https://en.wikipedia.org/wiki/Ephemeral_port)
 
 ## OAuth modes
+
+### Redirect URI modes (loopback)
+- No REDIRECT_URI: ephemeral loopback (random port), works for stdio and http.
+- REDIRECT_URI set: persistent callback /oauth/callback (HTTP only).
 
 ### Loopback OAuth (interactive)
 

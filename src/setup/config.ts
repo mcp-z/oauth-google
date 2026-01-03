@@ -46,8 +46,12 @@ function parseAuthMode(value: string): {
 
 /**
  * Transport type for MCP servers
+ *
+ * @typedef {('stdio' | 'http')} TransportType
+ * @property {'stdio'} stdio - Standard input/output transport for CLI applications
+ * @property {'http'} http - HTTP transport for web-based applications
  */
-type TransportType = 'stdio' | 'http';
+export type TransportType = 'stdio' | 'http';
 
 /**
  * Parse Google OAuth configuration from CLI arguments and environment variables.
@@ -72,6 +76,7 @@ type TransportType = 'stdio' | 'http';
  * @param args - CLI arguments array (typically process.argv)
  * @param env - Environment variables object (typically process.env)
  * @param transport - Optional transport type. If 'stdio' and auth mode is 'dcr', throws an error.
+ *                   See {@link TransportType} for valid values.
  * @returns Parsed Google OAuth configuration
  * @throws Error if required environment variables are missing, values are invalid, or DCR is used with stdio transport
  *
@@ -147,6 +152,9 @@ export function parseConfig(args: string[], env: Record<string, string | undefin
   const cliRedirectUri = typeof values['redirect-uri'] === 'string' ? values['redirect-uri'] : undefined;
   const envRedirectUri = env.REDIRECT_URI;
   const redirectUri = cliRedirectUri ?? envRedirectUri;
+  if (redirectUri && transport === 'stdio') {
+    throw new Error('REDIRECT_URI requires HTTP transport. The OAuth callback must be served over HTTP.');
+  }
 
   const clientId = requiredEnv('GOOGLE_CLIENT_ID');
   const clientSecret = env.GOOGLE_CLIENT_SECRET;

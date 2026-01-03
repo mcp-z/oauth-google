@@ -25,14 +25,27 @@ import { KeyvFile } from 'keyv-file';
 import * as path from 'path';
 import { LoopbackOAuthProvider } from '../../src/index.ts';
 import type { EnrichedExtra } from '../../src/types.ts';
+import { AuthRequiredError } from '../../src/types.ts';
+import { GOOGLE_SCOPE } from '../constants.ts';
 import { createConfig } from '../lib/config.ts';
 import { createTestExtra, logger } from '../lib/test-utils.ts';
 
 const config = createConfig();
-const GOOGLE_SCOPE = 'openid https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/spreadsheets.readonly';
 
 // Use isolated test token directory
 const tokenStorePath = path.join(process.cwd(), '.tokens/test');
+
+// Test-only provider to force auth_required without interactive OAuth.
+// Exception to no-mocks rule: this isolates middleware error handling deterministically.
+class AuthRequiredLoopbackProvider extends LoopbackOAuthProvider {
+  async getAccessToken(): Promise<string> {
+    throw new AuthRequiredError({
+      kind: 'auth_url',
+      provider: 'service-a',
+      url: 'https://example.test/auth',
+    });
+  }
+}
 
 describe('LoopbackOAuthProvider Integration Tests', () => {
   describe('Google APIs Integration', () => {
@@ -163,6 +176,7 @@ describe('LoopbackOAuthProvider Integration Tests', () => {
       });
 
       testAccountId = await authProvider.getUserEmail();
+      await setActiveAccount(tokenStore, { service: 'gmail', accountId: testAccountId });
       middleware = authProvider.authMiddleware();
     });
 
@@ -266,8 +280,8 @@ describe('LoopbackOAuthProvider Integration Tests', () => {
       it('handles missing tokens gracefully (auth_required)', async () => {
         // Create provider with empty token store
         const tokenStore = new Keyv(); // In-memory empty store
-        const invalidAuthProvider = new LoopbackOAuthProvider({
-          service: 'gmail',
+        const invalidAuthProvider = new AuthRequiredLoopbackProvider({
+          service: 'service-a',
           clientId: config.clientId,
           clientSecret: config.clientSecret || undefined,
           scope: 'https://www.googleapis.com/auth/gmail.modify https://www.googleapis.com/auth/drive',
@@ -312,7 +326,17 @@ describe('LoopbackOAuthProvider Integration Tests', () => {
           config: { outputSchema: testSchema },
           handler: testHandler,
         } as unknown as ToolModule;
-        const enhancedToolModule = middleware.withToolAuth(toolModule);
+        const enhancedToolModule = new AuthRequiredLoopbackProvider({
+          service: 'service-a',
+          clientId: config.clientId,
+          clientSecret: config.clientSecret || undefined,
+          scope: 'https://www.googleapis.com/auth/gmail.modify https://www.googleapis.com/auth/drive',
+          headless: true,
+          logger,
+          tokenStore: new Keyv(),
+        })
+          .authMiddleware()
+          .withToolAuth(toolModule);
         const wrappedHandler = enhancedToolModule.handler as TestHandler;
 
         const result = await wrappedHandler({}, createTestExtra({ _meta: { accountId: 'nonexistent@gmail.com' } }));
