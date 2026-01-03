@@ -152,9 +152,10 @@ export function parseConfig(args: string[], env: Record<string, string | undefin
     throw new Error('REDIRECT_URI requires HTTP transport. The OAuth callback must be served over HTTP.');
   }
 
-  const cliHeadless = typeof values.headless === 'boolean' ? values.headless : undefined;
+  if (typeof values.headless === 'string') throw new Error('Use --headless or --no-headless (do not pass a value)');
+  const cliHeadless = values['no-headless'] ? false : values.headless === true ? true : undefined;
   const envHeadless = env.HEADLESS === 'true' ? true : env.HEADLESS === 'false' ? false : undefined;
-  const headless = cliHeadless ?? envHeadless ?? redirectUri !== undefined; // default for redirectUri is headless (assume server http deployment); otherwise assume local and non-headless
+  const headless = cliHeadless ?? envHeadless ?? redirectUri !== undefined;
 
   const clientId = requiredEnv('GOOGLE_CLIENT_ID');
   const clientSecret = env.GOOGLE_CLIENT_SECRET;
