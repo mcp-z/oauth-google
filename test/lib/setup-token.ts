@@ -50,8 +50,16 @@ async function setupToken(): Promise<void> {
   console.log('Starting loopback OAuth flow...');
   console.log('');
 
-  // Trigger OAuth flow - will open browser or print URL
-  await auth.getAccessToken();
+  // Trigger OAuth flow via middleware (handles auth_url by opening browser + polling)
+  const middleware = auth.authMiddleware();
+  const setupTool = middleware.withToolAuth({
+    name: 'test-setup',
+    config: {},
+    handler: async () => {
+      return { ok: true };
+    },
+  });
+  await (setupTool.handler as (args: unknown, extra: unknown) => Promise<unknown>)({}, {});
 
   // Get user email for confirmation
   const email = await auth.getUserEmail();

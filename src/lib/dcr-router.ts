@@ -193,11 +193,14 @@ export function createDcrRouter(config: DcrRouterConfig): express.Router {
       });
     }
 
+    // Use client-provided scope or fall back to server's supported scopes
+    const effectiveScope = typeof scope === 'string' && scope.trim() !== '' ? scope : scopesSupported.join(' ');
+
     const googleState = randomUUID();
     const dcrRequestState = {
       client_id,
       redirect_uri,
-      scope: typeof scope === 'string' ? scope : '',
+      scope: effectiveScope,
       state: typeof state === 'string' ? state : undefined,
       code_challenge: typeof code_challenge === 'string' ? code_challenge : undefined,
       code_challenge_method: typeof code_challenge_method === 'string' ? code_challenge_method : undefined,
@@ -211,7 +214,7 @@ export function createDcrRouter(config: DcrRouterConfig): express.Router {
     googleAuthUrl.searchParams.set('client_id', clientConfig.clientId);
     googleAuthUrl.searchParams.set('redirect_uri', `${baseUrl}/oauth/callback`);
     googleAuthUrl.searchParams.set('response_type', 'code');
-    googleAuthUrl.searchParams.set('scope', typeof scope === 'string' ? scope : '');
+    googleAuthUrl.searchParams.set('scope', effectiveScope);
     googleAuthUrl.searchParams.set('state', googleState);
     googleAuthUrl.searchParams.set('access_type', 'offline');
     googleAuthUrl.searchParams.set('prompt', 'consent');
@@ -251,6 +254,7 @@ export function createDcrRouter(config: DcrRouterConfig): express.Router {
     }
 
     const dcrRequestState = await store.get(`dcr:google-state:${googleState}`);
+
     if (!dcrRequestState) {
       return res.status(400).json({
         error: 'invalid_request',
