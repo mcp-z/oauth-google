@@ -550,8 +550,7 @@ export class LoopbackOAuthProvider implements OAuth2TokenStorageProvider {
     await this.createPendingAuth({ state: stateId, codeVerifier });
 
     let server: http.Server | null = null;
-    let serverPort: number;
-    let finalRedirectUri: string; // set after listen
+    let finalRedirectUri: string;
 
     // Create ephemeral server with OS-assigned port (RFC 8252)
     server = this.createOAuthCallbackServer({
@@ -567,7 +566,7 @@ export class LoopbackOAuthProvider implements OAuth2TokenStorageProvider {
     });
 
     // Start listening
-    await new Promise<void>((resolve, reject) => {
+    finalRedirectUri = await new Promise<string>((resolve, reject) => {
       server?.listen(listenPort, listenHost, () => {
         const address = server?.address();
         if (!address || typeof address === 'string') {
@@ -576,18 +575,14 @@ export class LoopbackOAuthProvider implements OAuth2TokenStorageProvider {
           return;
         }
 
-        serverPort = address.port;
+        const serverPort = address.port;
 
         // Construct final redirect URI
-        if (useConfiguredUri && configRedirectUri) {
-          finalRedirectUri = configRedirectUri;
-        } else {
-          finalRedirectUri = `http://localhost:${serverPort}${callbackPath}`;
-        }
+        const redirectUri = useConfiguredUri && configRedirectUri ? configRedirectUri : `http://localhost:${serverPort}${callbackPath}`;
 
         logger.info('Ephemeral OAuth server started', { port: serverPort, headless, service });
 
-        resolve();
+        resolve(redirectUri);
       });
     });
 
