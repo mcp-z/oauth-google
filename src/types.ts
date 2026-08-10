@@ -10,14 +10,11 @@ import type { ServerNotification, ServerRequest } from '@modelcontextprotocol/sd
 import type { OAuth2Client } from 'google-auth-library';
 import type { Keyv } from 'keyv';
 
-// Re-export only essential shared types for public API
-export type { Logger, CachedToken, ToolModule, ProviderTokens, DcrClientMetadata, DcrClientInformation };
-
 // Re-export error class
 export { AuthRequiredError } from '@mcp-z/oauth';
-
+// Re-export only essential shared types for public API
 // Re-export additional types for internal package use
-export type { ToolHandler, AuthFlowDescriptor, OAuth2TokenStorageProvider, UserAuthProvider, RequestHandlerExtra, ServerRequest, ServerNotification };
+export type { AuthFlowDescriptor, CachedToken, DcrClientInformation, DcrClientMetadata, Logger, OAuth2TokenStorageProvider, ProviderTokens, RequestHandlerExtra, ServerNotification, ServerRequest, ToolHandler, ToolModule, UserAuthProvider };
 
 /**
  * Google service types that support OAuth
