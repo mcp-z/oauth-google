@@ -43,11 +43,9 @@
     "format": "tsds format",
     "prepublish:check": "ncp",
     "prepublishOnly": "tsds validate",
-    "test": "npm run test:unit && npm run test:integration",
-    "test:engines": "nvu engines tsds test:node --no-timeouts 'test/**/*.test.ts'",
-    "test:integration": "tsds test:node --no-timeouts 'test/integration/**/*.test.ts'",
+    "test": "tsds test:node --no-timeouts",
+    "test:engines": "nvu engines tsds test:node --no-timeouts",
     "test:setup": "node --env-file=.env.test test/lib/setup-token.ts",
-    "test:unit": "tsds test:node --no-timeouts 'test/unit/**/*.test.ts'",
     "version": "tsds version"
   },
   "dependencies": {
@@ -57,7 +55,7 @@
     "zod": "^4.0.0"
   },
   "devDependencies": {
-    "@mcp-z/client": "^1.0.10",
+    "@mcp-z/client": "^1.0.11",
     "@modelcontextprotocol/sdk": "^1.0.0",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
