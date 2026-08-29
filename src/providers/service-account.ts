@@ -1,7 +1,11 @@
+import { createPrivateKey, createSign } from 'crypto';
 import { promises as fs } from 'fs';
 import { OAuth2Client } from 'google-auth-library';
-import { importPKCS8, SignJWT } from 'jose';
 import type { AuthContext, EnrichedExtra, Logger, OAuth2TokenStorageProvider } from '../types.ts';
+
+function base64url(input: string): string {
+  return Buffer.from(input).toString('base64url');
+}
 
 /**
  * Service Account Key File Structure
@@ -158,25 +162,24 @@ export class ServiceAccountProvider implements OAuth2TokenStorageProvider {
    */
   private async generateJWT(): Promise<string> {
     const keyData = await this.loadKeyFile();
-
-    // Import private key using jose
-    const privateKey = await importPKCS8(keyData.private_key, 'RS256');
-
-    // Current time
     const now = Math.floor(Date.now() / 1000);
 
-    // Create JWT with required claims for Google OAuth
-    const jwt = await new SignJWT({
-      iss: keyData.client_email, // Issuer: service account email
-      scope: this.scopes.join(' '), // Scopes: space-separated
-      aud: 'https://oauth2.googleapis.com/token', // Audience: token endpoint
-      exp: now + 3600, // Expiration: 1 hour from now
-      iat: now, // Issued at: current time
-    })
-      .setProtectedHeader({ alg: 'RS256', typ: 'JWT' })
-      .sign(privateKey);
+    const encodedHeader = base64url(JSON.stringify({ alg: 'RS256', typ: 'JWT' }));
+    const encodedPayload = base64url(
+      JSON.stringify({
+        iss: keyData.client_email, // Issuer: service account email
+        scope: this.scopes.join(' '), // Scopes: space-separated
+        aud: 'https://oauth2.googleapis.com/token', // Audience: token endpoint
+        exp: now + 3600, // Expiration: 1 hour from now
+        iat: now, // Issued at: current time
+      })
+    );
+    const signingInput = `${encodedHeader}.${encodedPayload}`;
 
-    return jwt;
+    const privateKey = createPrivateKey(keyData.private_key);
+    const signature = createSign('RSA-SHA256').update(signingInput).end().sign(privateKey).toString('base64url');
+
+    return `${signingInput}.${signature}`;
   }
 
   /**

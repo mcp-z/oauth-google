@@ -16,6 +16,8 @@ import * as path from 'path';
 import { LoopbackOAuthProvider } from '../../src/providers/loopback-oauth.ts';
 import { createConfig } from '../../src/setup/config.ts';
 import { GOOGLE_SCOPE } from '../constants.ts';
+import { loadDcrTokens } from './dcr-token-helper.ts';
+import { setupDcrToken } from './setup-dcr-token.ts';
 import { logger } from './test-utils.ts';
 
 const config = createConfig();
@@ -87,7 +89,6 @@ async function setupToken(): Promise<void> {
     console.log('');
   } else {
     // Check for existing DCR tokens
-    const { loadDcrTokens } = await import('./dcr-token-helper.ts');
     let existingDcrToken = await loadDcrTokens();
 
     // Try to refresh if token exists but is expired
@@ -153,9 +154,6 @@ async function setupToken(): Promise<void> {
       console.log(`   Refresh Token: ${existingDcrToken.providerRefreshToken.substring(0, 20)}...`);
       console.log('');
     } else {
-      // Import DCR setup helper
-      const { setupDcrToken } = await import('./setup-dcr-token.ts');
-
       const dcrOptions: Parameters<typeof setupDcrToken>[0] = {
         clientId: dcrClientId,
         scope: GOOGLE_SCOPE,

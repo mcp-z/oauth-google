@@ -11,6 +11,9 @@ import '../../lib/env-loader.ts';
 
 import type { ProviderTokens } from '@mcp-z/oauth';
 import assert from 'assert';
+import Keyv from 'keyv';
+import { KeyvFile } from 'keyv-file';
+import * as path from 'path';
 import { DcrOAuthProvider } from '../../../src/providers/dcr.ts';
 import { GOOGLE_SCOPE } from '../../constants.ts';
 import { createConfig } from '../../lib/config.ts';
@@ -95,10 +98,6 @@ describe('DcrOAuthProvider - Integration with Google APIs', () => {
     this.timeout(30000);
 
     // Load stored DCR tokens from test-setup
-    const path = await import('path');
-    const Keyv = (await import('keyv')).default;
-    const { KeyvFile } = await import('keyv-file');
-
     const dcrTokenPath = path.join(process.cwd(), '.tokens/dcr.json');
     const dcrStore = new Keyv({
       store: new KeyvFile({ filename: dcrTokenPath }),

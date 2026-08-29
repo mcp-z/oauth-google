@@ -3,6 +3,7 @@ import '../lib/env-loader.ts';
 import assert from 'assert';
 import * as fs from 'fs';
 import * as path from 'path';
+import { ServiceAccountProvider } from '../../src/providers/service-account.ts';
 import { type DcrConfig, type OAuthConfig, parseConfig, parseDcrConfig } from '../../src/setup/config.ts';
 
 describe('parseConfig', () => {
@@ -286,7 +287,6 @@ describe('parseConfig', () => {
         // Try to use the service account provider
         // The relative path should have been resolved at parse time,
         // so this should still work even though we changed directories
-        const { ServiceAccountProvider } = await import('../../src/providers/service-account.ts');
         const provider = new ServiceAccountProvider({
           keyFilePath: resolvedKeyFilePath,
           scopes: ['https://www.googleapis.com/auth/drive.readonly'],
