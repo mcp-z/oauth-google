@@ -11,9 +11,9 @@ import '../../lib/env-loader.ts';
 import { addAccount, type CachedToken, createAccountKey, createServiceKey, getActiveAccount, getToken, removeAccount, setActiveAccount } from '@mcp-z/oauth';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import assert from 'assert';
+import { mkdirSync } from 'fs';
 import Keyv from 'keyv';
 import { KeyvFile } from 'keyv-file';
-import * as os from 'os';
 import * as path from 'path';
 import { z } from 'zod';
 import { type EnrichedExtra, LoopbackOAuthProvider, type ToolModule } from '../../../src/index.ts';
@@ -62,7 +62,8 @@ before(async () => {
   realTokenData = tokenData;
 
   // Clone real token store to avoid mutating .tokens during tests.
-  const tempTokenStorePath = path.join(os.tmpdir(), `oauth-google-loopback-${Date.now()}.json`);
+  mkdirSync('.tmp', { recursive: true });
+  const tempTokenStorePath = path.resolve('.tmp', `oauth-google-loopback-${Date.now()}.json`);
   const tempTokenStore = new Keyv({
     store: new KeyvFile({ filename: tempTokenStorePath }),
   });
