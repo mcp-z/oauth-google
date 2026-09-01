@@ -26,8 +26,8 @@ import * as path from 'path';
 import { LoopbackOAuthProvider } from '../../src/index.ts';
 import type { EnrichedExtra } from '../../src/types.ts';
 import { AuthRequiredError } from '../../src/types.ts';
-import { GOOGLE_SCOPE } from '../constants.ts';
 import { createConfig } from '../lib/config.ts';
+import { GOOGLE_SCOPE } from '../lib/constants.ts';
 import { createTestExtra, logger } from '../lib/test-utils.ts';
 
 const config = createConfig();

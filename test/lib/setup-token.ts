@@ -15,7 +15,7 @@ import { KeyvFile } from 'keyv-file';
 import * as path from 'path';
 import { LoopbackOAuthProvider } from '../../src/providers/loopback-oauth.ts';
 import { createConfig } from '../../src/setup/config.ts';
-import { GOOGLE_SCOPE } from '../constants.ts';
+import { GOOGLE_SCOPE } from './constants.ts';
 import { loadDcrTokens } from './dcr-token-helper.ts';
 import { setupDcrToken } from './setup-dcr-token.ts';
 import { logger } from './test-utils.ts';
