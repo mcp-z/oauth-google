@@ -1,7 +1,6 @@
 # @mcp-z/oauth-google
 
-Docs: https://mcp-z.github.io/oauth-google
-OAuth client for Google APIs with multi-account support and PKCE.
+OAuth 2.0 client for Google APIs with multi-account support, PKCE security, and swappable storage backends
 
 ## Common uses
 
@@ -99,3 +98,7 @@ Use `parseConfig()` and `parseDcrConfig()` to load CLI + env settings for server
 ## Requirements
 
 - Node.js >= 22
+
+### Documentation
+
+[API Docs](https://mcp-z.github.io/oauth-google)

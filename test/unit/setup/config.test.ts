@@ -1,10 +1,9 @@
-import '../lib/env-loader.ts';
+import '../../lib/env-loader.ts';
 
+import { type DcrConfig, type OAuthConfig, parseConfig, parseDcrConfig, ServiceAccountProvider } from '@mcp-z/oauth-google';
 import assert from 'assert';
 import * as fs from 'fs';
 import * as path from 'path';
-import { ServiceAccountProvider } from '../../src/providers/service-account.ts';
-import { type DcrConfig, type OAuthConfig, parseConfig, parseDcrConfig } from '../../src/setup/config.ts';
 
 describe('parseConfig', () => {
   describe('Environment variables', () => {

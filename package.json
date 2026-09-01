@@ -1,6 +1,6 @@
 {
   "name": "@mcp-z/oauth-google",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "OAuth 2.0 client for Google APIs with multi-account support, PKCE security, and swappable storage backends",
   "keywords": [
     "oauth2",
@@ -64,7 +64,7 @@
     "cors": "^2.0.0",
     "dotenv": "^17.2.3",
     "get-port": "5.1.1",
-    "googleapis": "^174.0.1",
+    "googleapis": "174.0.1",
     "keyv": "^5.0.0",
     "keyv-file": "5.3.3",
     "node-version-use": "^2.4.7",
