@@ -10,12 +10,12 @@
  * 3. Place as service-account.test.json in oauth-google root (see service-account.test.example.json)
  */
 
+import type { AuthContext, EnrichedExtra, ToolModule } from '@mcp-z/oauth-google';
+import { ServiceAccountProvider } from '@mcp-z/oauth-google';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import assert from 'assert';
 import { promises as fs } from 'fs';
 import { google } from 'googleapis';
-import { ServiceAccountProvider } from '../../../src/providers/service-account.ts';
-import type { AuthContext, EnrichedExtra, ToolModule } from '../../../src/types.ts';
 import { createTestExtra, logger } from '../../lib/test-utils.ts';
 
 // Service account key file location (in package root)
