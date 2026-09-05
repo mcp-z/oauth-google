@@ -1,7 +1,7 @@
 /**
  * ServiceAccountProvider Unit Tests
  *
- * Tests use REAL Google OAuth endpoints (no mocking) following QUALITY.md T1.
+ * Tests use REAL Google OAuth endpoints (no mocking) per testing-standards.
  * Requires a valid service account key file to run.
  *
  * Setup:
