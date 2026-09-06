@@ -17,9 +17,8 @@
 
 import { addAccount, generatePKCE, getActiveAccount, getErrorTemplate, getSuccessTemplate, getToken, type OAuth2TokenStorageProvider, openUrl, setAccountInfo, setActiveAccount, setToken } from '@mcp-z/oauth';
 import { randomUUID } from 'crypto';
-import { OAuth2Client } from 'google-auth-library';
 import * as http from 'http';
-import { type AuthContext, type AuthFlowDescriptor, AuthRequiredError, type CachedToken, type EnrichedExtra, type LoopbackOAuthConfig } from '../types.ts';
+import { type AuthContext, type AuthFlowDescriptor, AuthRequiredError, type CachedToken, type EnrichedExtra, type GoogleAuthProvider, type LoopbackOAuthConfig } from '../types.ts';
 
 interface TokenResponse {
   access_token: string;
@@ -134,36 +133,16 @@ export class LoopbackOAuthProvider implements OAuth2TokenStorageProvider {
   }
 
   /**
-   * Convert to googleapis-compatible OAuth2Client
+   * Token provider for this account, to hand to a Google API client via
+   * `attachTokenProvider`.
    *
    * @param accountId - Account identifier for multi-account support (e.g., 'user@example.com')
-   * @returns OAuth2Client configured for the specified account
    */
-  toAuth(accountId?: string): OAuth2Client {
-    const { clientId, clientSecret } = this.config;
-    const client = new OAuth2Client({
-      clientId,
-      ...(clientSecret && { clientSecret }),
-    });
-
-    // @ts-expect-error - Override protected method to inject fresh token
-    client.getRequestMetadataAsync = async (_url?: string) => {
-      // Get token from FileAuthAdapter (not from client to avoid recursion)
-      const token = await this.getAccessToken(accountId);
-
-      // Update client credentials for googleapis compatibility
-      client.credentials = {
-        access_token: token,
-        token_type: 'Bearer',
-      };
-
-      // Return headers as Map (required by authclient.js addUserProjectAndAuthHeaders)
-      const headers = new Map<string, string>();
-      headers.set('authorization', `Bearer ${token}`);
-      return { headers };
-    };
-
-    return client;
+  toAuthProvider(accountId?: string): GoogleAuthProvider {
+    // Read through the store on every call rather than caching here: it is the
+    // store that knows which token is current, and one keyv read per API call is
+    // what the previous implementation cost too.
+    return { getAccessToken: () => this.getAccessToken(accountId) };
   }
 
   /**
@@ -785,7 +764,7 @@ export class LoopbackOAuthProvider implements OAuth2TokenStorageProvider {
 
         try {
           const effectiveAccountId = await ensureAuthenticatedOrThrow();
-          const auth = this.toAuth(effectiveAccountId);
+          const auth = this.toAuthProvider(effectiveAccountId);
 
           // Inject authContext and logger into extra
           (extra as { authContext?: AuthContext }).authContext = {

@@ -35,7 +35,7 @@ it('LoopbackOAuthProvider - getAccessToken returns valid token', async () => {
   // This test would require setting up account management state which is better tested in middleware tests
 });
 
-it('LoopbackOAuthProvider - toAuth provides googleapis-compatible auth', async () => {
+it('LoopbackOAuthProvider - toAuthProvider provides googleapis-compatible auth', async () => {
   const tokenStore = new Keyv({
     store: new KeyvFile({ filename: path.join(tokenStorePath, 'store.json') }),
   });
@@ -50,10 +50,10 @@ it('LoopbackOAuthProvider - toAuth provides googleapis-compatible auth', async (
     tokenStore,
   });
 
-  const googleAuth = auth.toAuth('default');
+  const googleAuth = auth.toAuthProvider('default');
 
-  assert.ok(googleAuth, 'toAuth should return auth object');
-  assert.ok(typeof googleAuth.getRequestHeaders === 'function', 'Should have getRequestHeaders function');
+  assert.ok(googleAuth, 'toAuthProvider should return auth object');
+  assert.ok(typeof googleAuth.getAccessToken === 'function', 'Should have getAccessToken function');
 });
 
 let sharedTokenStore: Keyv;
