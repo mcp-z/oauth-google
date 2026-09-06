@@ -7,12 +7,7 @@ import type { EnrichedExtra } from '../../src/index.ts';
  */
 export function createTestExtra(overrides?: Partial<EnrichedExtra>): EnrichedExtra {
   return {
-    requestInfo: {
-      headers: {},
-      url: 'http://test.local',
-      method: 'POST',
-      ...overrides?.requestInfo,
-    },
+    http: { req: new Request('http://test.local', { method: 'POST' }) },
     _meta: overrides?._meta || {},
     ...overrides,
   } as EnrichedExtra;

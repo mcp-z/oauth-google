@@ -12,7 +12,7 @@
 
 import type { AuthContext, EnrichedExtra, ToolModule } from '@mcp-z/oauth-google';
 import { ServiceAccountProvider } from '@mcp-z/oauth-google';
-import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
+import type { CallToolResult } from '@modelcontextprotocol/server';
 import assert from 'assert';
 import { promises as fs } from 'fs';
 import { google } from 'googleapis';

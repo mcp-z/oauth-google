@@ -17,20 +17,19 @@
  */
 
 import type { ToolConfig } from '@mcp-z/oauth';
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import type { RequestHandlerExtra } from '@modelcontextprotocol/sdk/shared/protocol.js';
-import type { CallToolResult, ServerNotification, ServerRequest } from '@modelcontextprotocol/sdk/types.js';
+import type { CallToolResult, ServerContext } from '@modelcontextprotocol/server';
+import { McpServer } from '@modelcontextprotocol/server';
+import { StdioServerTransport } from '@modelcontextprotocol/server/stdio';
 import { google } from 'googleapis';
 import { z } from 'zod';
 
 /**
  * Extract OAuth token from MCP context (stateless mode)
- * MCP SDK provides tokens in extra._meta.oauth.token
+ * MCP SDK provides tokens in extra.mcpReq._meta.oauth.token
  */
-function extractTokenFromContext(extra: RequestHandlerExtra<ServerRequest, ServerNotification>): string {
+function extractTokenFromContext(extra: ServerContext): string {
   // Type-safe access to optional OAuth token in meta
-  const token = (extra._meta as { oauth?: { token?: string } } | undefined)?.oauth?.token;
+  const token = (extra.mcpReq._meta as { oauth?: { token?: string } } | undefined)?.oauth?.token;
   if (!token || typeof token !== 'string') {
     throw new Error('No OAuth token provided in MCP context. Client must provide token via capabilities.experimental.oauth');
   }
@@ -47,23 +46,25 @@ async function main() {
   const messageSearchConfig: ToolConfig = {
     title: 'Search Gmail Messages',
     description: 'Search messages in Gmail mailbox',
-    inputSchema: {
+    inputSchema: z.object({
       query: z.string().optional(),
-    },
-    outputSchema: {
+    }),
+    outputSchema: z.object({
       messages: z.array(
         z.object({
           id: z.string(),
           subject: z.string().optional(),
         })
       ),
-    },
+    }),
   };
 
-  server.registerTool('gmail-message-search', messageSearchConfig, async (args: { query?: string }, extra: unknown): Promise<CallToolResult> => {
+  server.registerTool('gmail-message-search', messageSearchConfig, async (rawArgs: unknown, extra: unknown): Promise<CallToolResult> => {
+    // The Standard Schema overload hands the handler `unknown`; the schema above is what validated it.
+    const args = rawArgs as { query?: string };
     try {
       // Extract token from MCP context (stateless mode)
-      const accessToken = extractTokenFromContext(extra as RequestHandlerExtra<ServerRequest, ServerNotification>);
+      const accessToken = extractTokenFromContext(extra as ServerContext);
 
       // Create OAuth2Client with token
       const oauth2Client = new google.auth.OAuth2();
@@ -130,15 +131,15 @@ async function main() {
   const accountCurrentConfig: ToolConfig = {
     title: 'Get Current Gmail Account',
     description: 'Get current authenticated Gmail account',
-    outputSchema: {
+    outputSchema: z.object({
       email: z.string(),
-    },
+    }),
   };
 
   server.registerTool('gmail-account-current', accountCurrentConfig, async (extra: unknown): Promise<CallToolResult> => {
     try {
       // Extract token from MCP context (stateless mode)
-      const accessToken = extractTokenFromContext(extra as RequestHandlerExtra<ServerRequest, ServerNotification>);
+      const accessToken = extractTokenFromContext(extra as ServerContext);
 
       // Create OAuth2Client with token
       const oauth2Client = new google.auth.OAuth2();
