@@ -1,7 +1,6 @@
 import { createPrivateKey, createSign } from 'crypto';
 import { promises as fs } from 'fs';
-import { OAuth2Client } from 'google-auth-library';
-import type { AuthContext, EnrichedExtra, Logger, OAuth2TokenStorageProvider } from '../types.ts';
+import type { AuthContext, EnrichedExtra, GoogleAuthProvider, Logger, OAuth2TokenStorageProvider } from '../types.ts';
 
 function base64url(input: string): string {
   return Buffer.from(input).toString('base64url');
@@ -63,8 +62,8 @@ interface TokenResponse {
  *   scopes: ['https://www.googleapis.com/auth/drive.readonly'],
  * });
  *
- * // Get authenticated OAuth2Client for googleapis
- * const auth = provider.toAuth('default');
+ * // Get a token provider for googleapis
+ * const auth = provider.toAuthProvider('default');
  * const drive = google.drive({ version: 'v3', auth });
  * ```
  */
@@ -278,63 +277,22 @@ export class ServiceAccountProvider implements OAuth2TokenStorageProvider {
   }
 
   /**
-   * Get OAuth2Client with service account credentials for googleapis
-   * This is the CRITICAL method that servers use to get authenticated API clients
+   * Token provider for the service account, to hand to a Google API client via
+   * `attachTokenProvider`.
    *
    * Service account ONLY works with accountId='service-account' (single static identity)
    *
-    @param accountId - Account identifier (must be 'service-account' or undefined)
-   * @returns OAuth2Client instance with access token credentials set
+   * @param accountId - Account identifier (must be 'service-account' or undefined)
    */
-  toAuth(accountId?: string): OAuth2Client {
+  toAuthProvider(accountId?: string): GoogleAuthProvider {
     // Service account ONLY works with 'service-account' account ID
     if (accountId !== undefined && accountId !== 'service-account') {
       throw new Error(`ServiceAccountProvider only supports accountId='service-account', got '${accountId}'. Service account uses a single static identity pattern.`);
     }
 
-    // Create OAuth2Client instance (no client ID/secret needed for service accounts)
-    const client = new OAuth2Client();
-
-    // Override getRequestMetadataAsync to provide authentication headers for each request
-    // This is the method googleapis calls to get auth headers - can be async and fetch tokens on-demand
-    (
-      client as OAuth2Client & {
-        getRequestMetadataAsync: (url?: string) => Promise<{ headers: Headers | Map<string, string> }>;
-      }
-    ).getRequestMetadataAsync = async (_url?: string) => {
-      try {
-        // Get fresh access token (can be async, will trigger JWT generation if needed)
-        const token = await this.getAccessToken();
-
-        // Update client credentials for consistency (other googleapis methods might check these)
-        client.credentials = {
-          access_token: token,
-          token_type: 'Bearer',
-        };
-
-        // Return headers as Headers instance for proper TypeScript types
-        const headers = new Headers();
-        headers.set('authorization', `Bearer ${token}`);
-        return { headers };
-      } catch (error) {
-        this.config.logger?.error('Failed to get service account access token for API request', { error });
-        throw error;
-      }
-    };
-
-    // Override getAccessToken to support googleapis client API and direct token access
-    client.getAccessToken = async () => {
-      try {
-        const token = await this.getAccessToken();
-        return { token };
-      } catch (error) {
-        this.config.logger?.error('Failed to get service account access token', { error });
-        throw error;
-      }
-    };
-
-    this.config.logger?.debug(`ServiceAccountProvider: OAuth2Client created for ${accountId}`);
-    return client;
+    // getAccessToken generates and exchanges a JWT when the cached token is spent,
+    // so the provider needs no state of its own here.
+    return { getAccessToken: () => this.getAccessToken(accountId) };
   }
 
   /**
@@ -354,7 +312,7 @@ export class ServiceAccountProvider implements OAuth2TokenStorageProvider {
    * This is the CRITICAL method that integrates service account auth into MCP servers
    *
    * Middleware wraps tool, resource, and prompt handlers and injects authContext into extra parameter.
-   * Handlers receive OAuth2Client via extra.authContext.auth for API calls.
+   * Handlers receive a GoogleAuthProvider via extra.authContext.auth for API calls.
    *
    * @returns Object with withToolAuth, withResourceAuth, withPromptAuth methods
    *
@@ -368,7 +326,7 @@ export class ServiceAccountProvider implements OAuth2TokenStorageProvider {
    *
    * // Tool handler receives auth
    * async function handler({ id }: In, extra: EnrichedExtra) {
-   *   // extra.authContext.auth is OAuth2Client (from middleware)
+   *   // extra.authContext.auth is a GoogleAuthProvider (from middleware)
    *   const gmail = google.gmail({ version: 'v1', auth: extra.authContext.auth });
    * }
    * ```
@@ -393,12 +351,12 @@ export class ServiceAccountProvider implements OAuth2TokenStorageProvider {
           // Get access token (generates JWT and exchanges if needed)
           await this.getAccessToken();
 
-          // Create OAuth2Client with service account credentials
-          const auth = this.toAuth(accountId);
+          // Token provider bound to the service account identity
+          const auth = this.toAuthProvider(accountId);
 
           // Inject authContext and logger into extra parameter
           (extra as { authContext?: AuthContext }).authContext = {
-            auth, // OAuth2Client for googleapis
+            auth, // GoogleAuthProvider; wrap with attachTokenProvider at the call site
             accountId, // 'service-account' (fixed, not service email)
             metadata: { serviceEmail }, // Keep email for logging/reference
           };

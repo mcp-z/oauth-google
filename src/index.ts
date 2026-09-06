@@ -6,6 +6,7 @@
  * - Service Account authentication for server-to-server scenarios
  */
 
+export { attachTokenProvider, type RefreshHandlerClient } from './lib/attach-token-provider.ts';
 export { createDcrRouter, type DcrRouterConfig } from './lib/dcr-router.ts';
 export { type VerificationResult, verifyBearerToken } from './lib/dcr-verify.ts';
 export { createLoopbackCallbackRouter } from './lib/loopback-router.ts';

@@ -10,8 +10,7 @@
 
 import type { ProviderTokens } from '@mcp-z/oauth';
 import { ProtocolError, ProtocolErrorCode } from '@modelcontextprotocol/server';
-import { OAuth2Client } from 'google-auth-library';
-import type { AuthContext, EnrichedExtra, Logger } from '../types.ts';
+import type { AuthContext, EnrichedExtra, GoogleAuthProvider, Logger } from '../types.ts';
 
 /**
  * DCR Provider configuration
@@ -56,7 +55,7 @@ interface TokenResponse {
  * Pattern:
  * ```typescript
  * const provider = new DcrOAuthProvider(config);
- * const auth = provider.toAuth(providerTokens);
+ * const auth = provider.toAuthProvider(providerTokens);  // pass to attachTokenProvider
  * const accessToken = await getAccessToken(auth);
  * ```
  */
@@ -69,52 +68,39 @@ export class DcrOAuthProvider {
   }
 
   /**
-   * Create Google OAuth2Client from provider tokens
+   * Token provider built from verification-supplied tokens.
    *
-   * This is the core stateless pattern - provider receives tokens from context
-   * (token verification, HTTP request) and creates OAuth2Client on-demand.
+   * This is the core stateless pattern - the provider receives tokens from
+   * context (token verification, HTTP request) rather than owning a store.
    *
    * @param tokens - Provider tokens (Google access/refresh tokens)
-   * @returns Google OAuth2Client configured with credentials
    */
-  toAuth(tokens: ProviderTokens): OAuth2Client {
-    const { clientId, clientSecret } = this.config;
+  toAuthProvider(tokens: ProviderTokens): GoogleAuthProvider {
+    // The tokens arrive from token verification and are refreshed in place, so the
+    // provider closes over them rather than re-reading a store it does not own.
+    let current = tokens;
 
-    // Create OAuth2Client with credentials
-    const client = new OAuth2Client({
-      clientId,
-      ...(clientSecret && { clientSecret }),
-    });
-
-    // Set initial credentials (convert undefined to null for Google's Credentials type)
-    client.credentials = {
-      access_token: tokens.accessToken,
-      refresh_token: tokens.refreshToken ?? null,
-      expiry_date: tokens.expiresAt ?? null,
-      token_type: 'Bearer',
-    };
-
-    // Override getRequestMetadataAsync to handle token refresh
-    // @ts-expect-error - Access protected method for token refresh
-    const originalGetMetadata = client.getRequestMetadataAsync.bind(client);
-
-    // @ts-expect-error - Override protected method for token refresh
-    client.getRequestMetadataAsync = async (url?: string) => {
-      // Check if token needs refresh
-      if (this.needsRefresh(client.credentials.expiry_date)) {
-        try {
-          // Use built-in refresh mechanism
-          const refreshedTokens = await client.refreshAccessToken();
-          client.credentials = refreshedTokens.credentials;
-        } catch (error) {
-          throw new Error(`Token refresh failed: ${error instanceof Error ? error.message : String(error)}`);
+    return {
+      getAccessToken: async () => {
+        if (!this.needsRefresh(current.expiresAt)) {
+          return current.accessToken;
         }
-      }
 
-      return originalGetMetadata(url);
+        // Expired - refresh if we can
+        if (current.refreshToken) {
+          try {
+            current = await this.refreshAccessToken(current.refreshToken);
+            return current.accessToken;
+          } catch (error) {
+            throw new Error(`Token refresh failed: ${error instanceof Error ? error.message : String(error)}`);
+          }
+        }
+
+        // Handing back a token we know is expired only turns a clear failure into a
+        // 401 from Google that points nowhere near the cause.
+        throw new Error('Access token expired and no refresh token available');
+      },
     };
-
-    return client;
   }
 
   /**
@@ -194,15 +180,17 @@ export class DcrOAuthProvider {
       return cached.email;
     }
 
-    const auth = this.toAuth(tokens);
+    const accessToken = await this.toAuthProvider(tokens).getAccessToken();
 
-    // Use OAuth2Client to make authenticated request
-    const response = await auth.request({
-      url: 'https://www.googleapis.com/oauth2/v2/userinfo',
-      method: 'GET',
+    const response = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+      headers: { Authorization: `Bearer ${accessToken}` },
     });
 
-    const userInfo = response.data as { email: string };
+    if (!response.ok) {
+      throw new Error(`Failed to get user info: ${response.status} ${await response.text()}`);
+    }
+
+    const userInfo = (await response.json()) as { email: string };
     const email = userInfo.email;
 
     // Cache with token expiration (default 1 hour if not specified)
@@ -286,7 +274,7 @@ export class DcrOAuthProvider {
         }
 
         // Create auth client from provider tokens
-        const auth = this.toAuth(verifyData.providerTokens);
+        const auth = this.toAuthProvider(verifyData.providerTokens);
 
         // Inject authContext and logger into extra
         (extra as { authContext?: AuthContext }).authContext = {

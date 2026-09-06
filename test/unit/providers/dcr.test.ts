@@ -122,7 +122,7 @@ function stopTestServer(): Promise<void> {
   });
 }
 
-it('DcrOAuthProvider - toAuth creates functional OAuth2Client', () => {
+it('DcrOAuthProvider - toAuthProvider creates a provider that mints the supplied token', async () => {
   const provider = new DcrOAuthProvider({
     clientId: config.clientId,
     ...(config.clientSecret && { clientSecret: config.clientSecret }),
@@ -132,15 +132,13 @@ it('DcrOAuthProvider - toAuth creates functional OAuth2Client', () => {
   });
 
   const tokens = createMockTokens();
-  const auth = provider.toAuth(tokens);
+  const auth = provider.toAuthProvider(tokens);
 
-  assert.ok(auth, 'OAuth2Client should be created');
-  assert.ok(auth.credentials, 'Credentials should be set');
-  assert.strictEqual(auth.credentials.access_token, tokens.accessToken, 'Access token should match');
-  assert.strictEqual(auth.credentials.refresh_token, tokens.refreshToken, 'Refresh token should match');
+  assert.ok(auth, 'A token provider should be created');
+  assert.strictEqual(await auth.getAccessToken(), tokens.accessToken, 'Access token should match');
 });
 
-it('DcrOAuthProvider - toAuth handles tokens without expiry', () => {
+it('DcrOAuthProvider - toAuthProvider handles tokens without expiry', async () => {
   const provider = new DcrOAuthProvider({
     clientId: config.clientId,
     ...(config.clientSecret && { clientSecret: config.clientSecret }),
@@ -155,14 +153,13 @@ it('DcrOAuthProvider - toAuth handles tokens without expiry', () => {
     scope: GOOGLE_SCOPE,
   };
 
-  const auth = provider.toAuth(tokensWithoutExpiry);
+  const auth = provider.toAuthProvider(tokensWithoutExpiry);
 
-  assert.ok(auth, 'OAuth2Client should be created');
-  assert.ok(auth.credentials, 'Credentials should be set');
-  assert.strictEqual(auth.credentials.access_token, tokensWithoutExpiry.accessToken);
+  // No expiry means nothing to refresh against, so the token is handed back as-is.
+  assert.strictEqual(await auth.getAccessToken(), tokensWithoutExpiry.accessToken);
 });
 
-it('DcrOAuthProvider - toAuth handles tokens without refresh token', () => {
+it('DcrOAuthProvider - toAuthProvider handles tokens without refresh token', async () => {
   const provider = new DcrOAuthProvider({
     clientId: config.clientId,
     ...(config.clientSecret && { clientSecret: config.clientSecret }),
@@ -171,18 +168,25 @@ it('DcrOAuthProvider - toAuth handles tokens without refresh token', () => {
     logger,
   });
 
-  const tokensWithoutRefresh: ProviderTokens = {
+  // Unexpired, so nothing to refresh: the token is handed straight back.
+  const unexpired: ProviderTokens = {
     accessToken: 'mock_access_token',
     expiresAt: Date.now() + 3600000,
     scope: GOOGLE_SCOPE,
   };
 
-  const auth = provider.toAuth(tokensWithoutRefresh);
+  assert.strictEqual(await provider.toAuthProvider(unexpired).getAccessToken(), unexpired.accessToken);
 
-  assert.ok(auth, 'OAuth2Client should be created');
-  assert.ok(auth.credentials, 'Credentials should be set');
-  assert.strictEqual(auth.credentials.access_token, tokensWithoutRefresh.accessToken);
-  assert.strictEqual(auth.credentials.refresh_token, null);
+  // Expired with no way to refresh must fail here and say so, rather than hand back a
+  // token we know is dead and let it surface as a 401 from Google. Matches
+  // @mcp-z/oauth-microsoft's DCR provider.
+  const expired: ProviderTokens = {
+    accessToken: 'mock_access_token',
+    expiresAt: Date.now() - 1000,
+    scope: GOOGLE_SCOPE,
+  };
+
+  await assert.rejects(() => provider.toAuthProvider(expired).getAccessToken(), /expired and no refresh token/);
 });
 
 // Integration tests with real Google endpoints (require tokens from test-setup)
@@ -379,10 +383,9 @@ describe('DcrOAuthProvider.authMiddleware()', () => {
   });
 
   it('auth provider can get access token from provider tokens', async () => {
-    const auth = provider.toAuth(mockProviderTokens);
+    const auth = provider.toAuthProvider(mockProviderTokens);
 
-    // Get credentials to access the access token
-    const { token } = await auth.getAccessToken();
+    const token = await auth.getAccessToken();
 
     assert.ok(token);
     assert.strictEqual(token, mockProviderTokens.accessToken);
