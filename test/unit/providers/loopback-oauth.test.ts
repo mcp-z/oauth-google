@@ -13,7 +13,7 @@ import '../../lib/env-loader.ts';
 
 import { addAccount, type CachedToken, createAccountKey, createServiceKey, getActiveAccount, getToken, removeAccount, setActiveAccount } from '@mcp-z/oauth';
 import { AuthRequiredError, type EnrichedExtra, LoopbackOAuthProvider, type ToolModule } from '@mcp-z/oauth-google';
-import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
+import type { CallToolResult } from '@modelcontextprotocol/server';
 import assert from 'assert';
 import { mkdirSync } from 'fs';
 import Keyv from 'keyv';

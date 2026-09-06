@@ -5,8 +5,7 @@
 
 // Shared types from base @mcp-z/oauth package
 import type { AuthFlowDescriptor, CachedToken, DcrClientInformation, DcrClientMetadata, Logger, OAuth2TokenStorageProvider, ProviderTokens, ToolHandler, ToolModule, UserAuthProvider } from '@mcp-z/oauth';
-import type { RequestHandlerExtra } from '@modelcontextprotocol/sdk/shared/protocol.js';
-import type { ServerNotification, ServerRequest } from '@modelcontextprotocol/sdk/types.js';
+import type { ServerContext } from '@modelcontextprotocol/server';
 import type { OAuth2Client } from 'google-auth-library';
 import type { Keyv } from 'keyv';
 
@@ -14,7 +13,7 @@ import type { Keyv } from 'keyv';
 export { AuthRequiredError } from '@mcp-z/oauth';
 // Re-export only essential shared types for public API
 // Re-export additional types for internal package use
-export type { AuthFlowDescriptor, CachedToken, DcrClientInformation, DcrClientMetadata, Logger, OAuth2TokenStorageProvider, ProviderTokens, RequestHandlerExtra, ServerNotification, ServerRequest, ToolHandler, ToolModule, UserAuthProvider };
+export type { AuthFlowDescriptor, CachedToken, DcrClientInformation, DcrClientMetadata, Logger, OAuth2TokenStorageProvider, ProviderTokens, ServerContext, ToolHandler, ToolModule, UserAuthProvider };
 
 /**
  * Google service types that support OAuth
@@ -129,10 +128,10 @@ export interface AuthContext {
 
 /**
  * Enriched extra with guaranteed auth context and logger
- * Handlers receive this type - never plain RequestHandlerExtra
+ * Handlers receive this type - never plain ServerContext
  * @public
  */
-export interface EnrichedExtra extends RequestHandlerExtra<ServerRequest, ServerNotification> {
+export interface EnrichedExtra extends ServerContext {
   /**
    * Auth context injected by middleware
    * GUARANTEED to exist (middleware catches auth failures)
