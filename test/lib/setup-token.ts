@@ -177,8 +177,7 @@ async function setupToken(): Promise<void> {
   console.log(`📁 Loopback tokens: ${tokenStorePath}`);
   console.log('📁 DCR tokens: .tokens/dcr.json');
   console.log('');
-  console.log('Run `npm run test:unit` to verify googleapis integration');
-  console.log('Run `npm run test:integration` to verify DCR flow');
+  console.log('Run `npm test` to verify the loopback and DCR flows');
 }
 
 // Run if executed directly
