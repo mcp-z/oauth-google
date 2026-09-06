@@ -6,6 +6,7 @@
  * PURPOSE: Test Google OAuth stateless mode without cross-dependencies
  * FEATURES:
  * - Full MCP SDK (McpServer, StdioServerTransport)
+ * - Gmail reached over REST, not the Google SDK: this package no longer depends on one
  * - Stateless mode: extracts OAuth token from MCP context
  * - Minimal gmail-message-search and gmail-account-current tools
  * - Real Gmail API calls using Google API client
@@ -20,8 +21,8 @@ import type { ToolConfig } from '@mcp-z/oauth';
 import type { CallToolResult, ServerContext } from '@modelcontextprotocol/server';
 import { McpServer } from '@modelcontextprotocol/server';
 import { StdioServerTransport } from '@modelcontextprotocol/server/stdio';
-import { google } from 'googleapis';
 import { z } from 'zod';
+import { gmailMessageMetadata, gmailMessagesList, userinfo } from '../google-rest.ts';
 
 /**
  * Extract OAuth token from MCP context (stateless mode)
@@ -66,37 +67,22 @@ async function main() {
       // Extract token from MCP context (stateless mode)
       const accessToken = extractTokenFromContext(extra as ServerContext);
 
-      // Create OAuth2Client with token
-      const oauth2Client = new google.auth.OAuth2();
-      oauth2Client.setCredentials({
-        access_token: accessToken,
-      });
-
-      // Create Gmail API client
-      const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
-
       // Search messages
-      const response = await gmail.users.messages.list({
-        userId: 'me',
+      const response = await gmailMessagesList(accessToken, {
         q: (args as { query?: string }).query || '',
         maxResults: 10,
       });
 
-      const messages = response.data.messages || [];
+      const messages = response.messages || [];
       const messageDetails = [];
 
       // Get subject for each message
       for (const message of messages.slice(0, 5)) {
         if (message.id) {
           try {
-            const messageResponse = await gmail.users.messages.get({
-              userId: 'me',
-              id: message.id,
-              format: 'metadata',
-              metadataHeaders: ['Subject'],
-            });
+            const messageResponse = await gmailMessageMetadata(accessToken, message.id, ['Subject']);
 
-            const headers = messageResponse.data.payload?.headers || [];
+            const headers = messageResponse.payload?.headers || [];
             const subjectHeader = headers.find((h) => h.name === 'Subject');
 
             messageDetails.push({
@@ -141,17 +127,8 @@ async function main() {
       // Extract token from MCP context (stateless mode)
       const accessToken = extractTokenFromContext(extra as ServerContext);
 
-      // Create OAuth2Client with token
-      const oauth2Client = new google.auth.OAuth2();
-      oauth2Client.setCredentials({
-        access_token: accessToken,
-      });
-
-      // Get user profile using Google OAuth2 API
-      const oauth2 = google.oauth2({ version: 'v2', auth: oauth2Client });
-      const response = await oauth2.userinfo.get();
-
-      const email = response.data.email || '';
+      // Get user profile from the userinfo endpoint
+      const email = (await userinfo(accessToken)).email || '';
 
       return {
         content: [{ type: 'text', text: JSON.stringify({ email }) }],

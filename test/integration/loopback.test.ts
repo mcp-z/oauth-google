@@ -19,7 +19,6 @@ import type { CallToolResult } from '@modelcontextprotocol/server';
  */
 import assert from 'assert';
 import * as fs from 'fs';
-import { google } from 'googleapis';
 import Keyv from 'keyv';
 import { KeyvFile } from 'keyv-file';
 import * as path from 'path';
@@ -28,6 +27,7 @@ import type { EnrichedExtra } from '../../src/types.ts';
 import { AuthRequiredError } from '../../src/types.ts';
 import { createConfig } from '../lib/config.ts';
 import { GOOGLE_SCOPE } from '../lib/constants.ts';
+import { driveFilesDelete, driveFilesList, gmailGetProfile, sheetsCreate, sheetsGet, userinfo } from '../lib/google-rest.ts';
 import { createTestExtra, logger } from '../lib/test-utils.ts';
 
 const config = createConfig();
@@ -49,7 +49,7 @@ class AuthRequiredLoopbackProvider extends LoopbackOAuthProvider {
 
 describe('LoopbackOAuthProvider Integration Tests', () => {
   describe('Google APIs Integration', () => {
-    it('OAuth2Client works with Google Drive API', async () => {
+    it('token works against the Drive API', async () => {
       const tokenStore = new Keyv({
         store: new KeyvFile({ filename: path.join(tokenStorePath, 'store.json') }),
       });
@@ -64,19 +64,15 @@ describe('LoopbackOAuthProvider Integration Tests', () => {
         tokenStore,
       });
 
-      const googleAuth = auth.toAuth(); // Use active account (set by test:setup)
-      const drive = google.drive({ version: 'v3', auth: googleAuth });
+      const token = await auth.toAuthProvider().getAccessToken(); // Use active account (set by test:setup)
 
-      const response = await drive.files.list({
-        pageSize: 10,
-        fields: 'files(id, name)',
-      });
+      const data = await driveFilesList(token, { pageSize: 10, fields: 'files(id, name)' });
 
-      assert.ok(response.data, 'Should get drive data');
-      assert.ok(Array.isArray(response.data.files), 'Should have files array');
+      assert.ok(data, 'Should get drive data');
+      assert.ok(Array.isArray(data.files), 'Should have files array');
     });
 
-    it('OAuth2Client works with Google Gmail API', async () => {
+    it('token works against the Gmail API', async () => {
       const tokenStore = new Keyv({
         store: new KeyvFile({ filename: path.join(tokenStorePath, 'store.json') }),
       });
@@ -91,17 +87,16 @@ describe('LoopbackOAuthProvider Integration Tests', () => {
         tokenStore,
       });
 
-      const googleAuth = auth.toAuth(); // Use active account (set by test:setup)
-      const gmail = google.gmail({ version: 'v1', auth: googleAuth });
+      const token = await auth.toAuthProvider().getAccessToken(); // Use active account (set by test:setup)
 
-      const response = await gmail.users.getProfile({ userId: 'me' });
+      const data = await gmailGetProfile(token);
 
-      assert.ok(response.data, 'Should get profile data');
-      assert.ok(response.data.emailAddress, 'Should have email address');
-      assert.ok(response.data.messagesTotal !== undefined, 'Should have message count');
+      assert.ok(data, 'Should get profile data');
+      assert.ok(data.emailAddress, 'Should have email address');
+      assert.ok(data.messagesTotal !== undefined, 'Should have message count');
     });
 
-    it('OAuth2Client works with Google Sheets API', async () => {
+    it('token works against the Sheets API', async () => {
       const tokenStore = new Keyv({
         store: new KeyvFile({ filename: path.join(tokenStorePath, 'store.json') }),
       });
@@ -116,37 +111,27 @@ describe('LoopbackOAuthProvider Integration Tests', () => {
         tokenStore,
       });
 
-      const googleAuth = auth.toAuth(); // Use active account (set by test:setup)
-      const sheets = google.sheets({ version: 'v4', auth: googleAuth });
+      const token = await auth.toAuthProvider().getAccessToken(); // Use active account (set by test:setup)
 
       // Create a test spreadsheet
-      const createResponse = await sheets.spreadsheets.create({
-        requestBody: {
-          properties: {
-            title: 'OAuth Test Spreadsheet',
-          },
-        },
-      });
+      const created = await sheetsCreate(token, 'OAuth Test Spreadsheet');
 
-      assert.ok(createResponse.data.spreadsheetId, 'Should create spreadsheet');
+      assert.ok(created.spreadsheetId, 'Should create spreadsheet');
 
-      const spreadsheetId = createResponse.data.spreadsheetId;
+      const spreadsheetId = created.spreadsheetId;
       if (!spreadsheetId) {
         throw new Error('Expected spreadsheetId in create response');
       }
 
       try {
         // Verify we can read it back
-        const getResponse = await sheets.spreadsheets.get({
-          spreadsheetId,
-        });
+        const fetched = await sheetsGet(token, spreadsheetId);
 
-        assert.ok(getResponse.data, 'Should get spreadsheet data');
-        assert.strictEqual(getResponse.data.properties?.title, 'OAuth Test Spreadsheet');
+        assert.ok(fetched, 'Should get spreadsheet data');
+        assert.strictEqual(fetched.properties?.title, 'OAuth Test Spreadsheet');
       } finally {
         // Clean up - delete the test spreadsheet
-        const drive = google.drive({ version: 'v3', auth: googleAuth });
-        await drive.files.delete({ fileId: spreadsheetId });
+        await driveFilesDelete(token, spreadsheetId);
       }
     });
   });
@@ -225,10 +210,8 @@ describe('LoopbackOAuthProvider Integration Tests', () => {
       it('makes real Google API calls with auth context', async () => {
         let userEmail: string | undefined;
         const testHandler = async (_args: unknown, extra: EnrichedExtra) => {
-          const auth = extra.authContext.auth;
-          const oauth2 = google.oauth2({ version: 'v2', auth });
-          const response = await oauth2.userinfo.get();
-          userEmail = response.data.email ?? undefined;
+          const token = await extra.authContext.auth.getAccessToken();
+          userEmail = (await userinfo(token)).email;
           return { content: [] };
         };
 
@@ -292,9 +275,8 @@ describe('LoopbackOAuthProvider Integration Tests', () => {
 
         const invalidMiddleware = invalidAuthProvider.authMiddleware();
         const testHandler = async (_args: unknown, extra: EnrichedExtra) => {
-          const auth = extra.authContext.auth; // This should fail
-          const oauth2 = google.oauth2({ version: 'v2', auth });
-          await oauth2.userinfo.get();
+          const token = await extra.authContext.auth.getAccessToken(); // This should fail
+          await userinfo(token);
           return { content: [] };
         };
 

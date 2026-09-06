@@ -15,7 +15,7 @@ import { ServiceAccountProvider } from '@mcp-z/oauth-google';
 import type { CallToolResult } from '@modelcontextprotocol/server';
 import assert from 'assert';
 import { promises as fs } from 'fs';
-import { google } from 'googleapis';
+import { driveFilesList } from '../../lib/google-rest.ts';
 import { createTestExtra, logger } from '../../lib/test-utils.ts';
 
 // Service account key file location (in package root)
@@ -281,39 +281,35 @@ describe('ServiceAccountProvider', () => {
     });
   });
 
-  describe('OAuth2Client Generation', () => {
-    it('toAuth: returns OAuth2Client instance', async () => {
+  describe('Token Provider Generation', () => {
+    it('toAuthProvider: returns a GoogleAuthProvider', async () => {
       const provider = new ServiceAccountProvider({
         keyFilePath,
         scopes: testScopes,
         logger,
       });
 
-      const auth = provider.toAuth('service-account');
+      const auth = provider.toAuthProvider('service-account');
 
-      // Verify it's an OAuth2Client
-      assert.ok(auth, 'Should return OAuth2Client');
-      assert.ok(auth.constructor.name === 'OAuth2Client', 'Should be OAuth2Client instance');
-
-      // Verify it has getAccessToken method (required by googleapis)
+      // The whole contract with a Google API client is this one method.
+      assert.ok(auth, 'Should return a provider');
       assert.ok(typeof auth.getAccessToken === 'function', 'Should have getAccessToken method');
     });
 
-    it('toAuth: accepts undefined accountId', async () => {
+    it('toAuthProvider: accepts undefined accountId', async () => {
       const provider = new ServiceAccountProvider({
         keyFilePath,
         scopes: testScopes,
         logger,
       });
 
-      const auth = provider.toAuth('service-account'); // No accountId
+      const auth = provider.toAuthProvider(undefined); // No accountId
 
-      // Should work fine
-      assert.ok(auth, 'Should return OAuth2Client');
-      assert.ok(auth.constructor.name === 'OAuth2Client', 'Should be OAuth2Client instance');
+      assert.ok(auth, 'Should return a provider');
+      assert.ok(typeof auth.getAccessToken === 'function', 'Should have getAccessToken method');
     });
 
-    it('toAuth: validates accountId parameter', async () => {
+    it('toAuthProvider: validates accountId parameter', async () => {
       const provider = new ServiceAccountProvider({
         keyFilePath,
         scopes: testScopes,
@@ -322,7 +318,7 @@ describe('ServiceAccountProvider', () => {
 
       // Should throw for wrong accountId
       assert.throws(
-        () => provider.toAuth('wrong-account'),
+        () => provider.toAuthProvider('wrong-account'),
         (error: Error) => {
           assert.ok(error.message.includes("ServiceAccountProvider only supports accountId='service-account'"), `Expected validation error, got: ${error.message}`);
           assert.ok(error.message.includes('single static identity pattern'), `Expected explanation in error, got: ${error.message}`);
@@ -331,23 +327,21 @@ describe('ServiceAccountProvider', () => {
       );
     });
 
-    it('toAuth: OAuth2Client can retrieve access token', async () => {
+    it('toAuthProvider: provider can retrieve access token', async () => {
       const provider = new ServiceAccountProvider({
         keyFilePath,
         scopes: testScopes,
         logger,
       });
 
-      const auth = provider.toAuth('service-account');
+      const auth = provider.toAuthProvider('service-account');
 
-      // Call getAccessToken on the OAuth2Client (googleapis will do this)
-      const result = await auth.getAccessToken();
+      // The client calls this per request, via attachTokenProvider's refreshHandler
+      const token = await auth.getAccessToken();
 
-      // Verify result structure
-      assert.ok(result, 'getAccessToken should return result');
-      assert.ok(result.token, 'Result should contain token');
-      assert.ok(typeof result.token === 'string', 'Token should be string');
-      assert.ok(result.token.length > 50, 'Token should be substantial length');
+      assert.ok(token, 'getAccessToken should return a token');
+      assert.ok(typeof token === 'string', 'Token should be string');
+      assert.ok(token.length > 50, 'Token should be substantial length');
     });
   });
 
@@ -489,8 +483,8 @@ describe('ServiceAccountProvider', () => {
    * (This is the critical test that was missing and caused our production bug!)
    */
   describe('Google APIs Integration', () => {
-    it('toAuth OAuth2Client integrates with real Google Drive API', async () => {
-      // CRITICAL TEST: This test verifies the OAuth2Client from toAuth() works with googleapis
+    it('toAuthProvider integrates with real Google Drive API', async () => {
+      // CRITICAL TEST: verifies the token minted by toAuthProvider() is accepted by the Drive API
       // Before our fix, this would fail with "No access, refresh token, API key or refresh handler callback is set"
       const provider = new ServiceAccountProvider({
         keyFilePath: KEY_FILE_PATH,
@@ -498,38 +492,34 @@ describe('ServiceAccountProvider', () => {
         logger,
       });
 
-      // Get OAuth2Client the same way production code does
-      const googleAuth = provider.toAuth('service-account');
-
-      // Use it with googleapis - this is where the original bug manifested
-      const drive = google.drive({ version: 'v3', auth: googleAuth });
+      // Get the token the same way production code does
+      const token = await provider.toAuthProvider('service-account').getAccessToken();
 
       // Make a real API call - this would fail before our fix
-      const response = await drive.files.list({
+      const data = await driveFilesList(token, {
         pageSize: 5, // Small limit
         fields: 'files(id, name),nextPageToken',
         q: 'trashed = false', // Non-trashed files only
       });
 
       // Verify response structure
-      assert.ok(response.data, 'Should get Drive API response');
-      assert.ok(Array.isArray(response.data.files), 'Should have files array');
-      assert.ok(typeof response.data.nextPageToken === 'string' || response.data.nextPageToken === undefined, 'Should have valid nextPageToken');
+      assert.ok(data, 'Should get Drive API response');
+      assert.ok(Array.isArray(data.files), 'Should have files array');
+      assert.ok(typeof data.nextPageToken === 'string' || data.nextPageToken === undefined, 'Should have valid nextPageToken');
     });
 
-    it('OAuth2Client supports token refresh and concurrent calls', async () => {
+    it('supports token refresh and concurrent calls', async () => {
       const provider = new ServiceAccountProvider({
         keyFilePath: KEY_FILE_PATH,
         scopes: ['https://www.googleapis.com/auth/drive.readonly'],
         logger,
       });
 
-      const googleAuth = provider.toAuth('service-account');
-      const drive = google.drive({ version: 'v3', auth: googleAuth });
+      const auth = provider.toAuthProvider('service-account');
 
       // Test concurrent API calls (this exercises token caching and refresh)
-      const apiCalls = Array.from({ length: 3 }, () =>
-        drive.files.list({
+      const apiCalls = Array.from({ length: 3 }, async () =>
+        driveFilesList(await auth.getAccessToken(), {
           pageSize: 1,
           fields: 'files(id)',
           q: 'trashed = false',
@@ -539,13 +529,13 @@ describe('ServiceAccountProvider', () => {
       const responses = await Promise.all(apiCalls);
 
       // All should succeed and return data
-      responses.forEach((response, i) => {
-        assert.ok(response.data, `Response ${i} should have data`);
-        assert.ok(Array.isArray(response.data.files), `Response ${i} should have files array`);
+      responses.forEach((data, i) => {
+        assert.ok(data, `Response ${i} should have data`);
+        assert.ok(Array.isArray(data.files), `Response ${i} should have files array`);
       });
     });
 
-    it('OAuth2Client properly sets access token on repeated calls', async () => {
+    it('mints a usable token on repeated calls', async () => {
       const provider = new ServiceAccountProvider({
         keyFilePath: KEY_FILE_PATH,
         scopes: ['https://www.googleapis.com/auth/drive.readonly'],
@@ -553,22 +543,14 @@ describe('ServiceAccountProvider', () => {
       });
 
       // First call - should set up cached token
-      const googleAuth1 = provider.toAuth('service-account');
-      const drive1 = google.drive({ version: 'v3', auth: googleAuth1 });
-      const response1 = await drive1.files.list({
-        pageSize: 1,
-        fields: 'files(id)',
-      });
-      assert.ok(response1.data.files, 'First API call should succeed');
+      const token1 = await provider.toAuthProvider('service-account').getAccessToken();
+      const response1 = await driveFilesList(token1, { pageSize: 1, fields: 'files(id)' });
+      assert.ok(response1.files, 'First API call should succeed');
 
-      // Second call - should reuse cached token (proves credentials are properly set)
-      const googleAuth2 = provider.toAuth('service-account');
-      const drive2 = google.drive({ version: 'v3', auth: googleAuth2 });
-      const response2 = await drive2.files.list({
-        pageSize: 1,
-        fields: 'files(id)',
-      });
-      assert.ok(response2.data.files, 'Second API call should succeed');
+      // Second call - should reuse cached token (proves the token is minted once and kept)
+      const token2 = await provider.toAuthProvider('service-account').getAccessToken();
+      const response2 = await driveFilesList(token2, { pageSize: 1, fields: 'files(id)' });
+      assert.ok(response2.files, 'Second API call should succeed');
     });
   });
 });

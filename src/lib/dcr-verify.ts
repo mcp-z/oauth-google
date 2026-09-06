@@ -42,7 +42,7 @@ export interface VerificationResult {
  *   token,
  *   'http://localhost:3456/oauth/verify'
  * );
- * const auth = provider.toAuth(result.providerTokens);
+ * const auth = provider.toAuthProvider(result.providerTokens);
  * ```
  *
  * @example External mode (Auth0/Stitch)
@@ -51,7 +51,7 @@ export interface VerificationResult {
  *   token,
  *   'https://auth.example.com/oauth/verify'
  * );
- * const auth = provider.toAuth(result.providerTokens);
+ * const auth = provider.toAuthProvider(result.providerTokens);
  * ```
  */
 export async function verifyBearerToken(bearerToken: string, verifyUrl: string): Promise<VerificationResult> {

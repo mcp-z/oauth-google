@@ -6,7 +6,6 @@
 // Shared types from base @mcp-z/oauth package
 import type { AuthFlowDescriptor, CachedToken, DcrClientInformation, DcrClientMetadata, Logger, OAuth2TokenStorageProvider, ProviderTokens, ToolHandler, ToolModule, UserAuthProvider } from '@mcp-z/oauth';
 import type { ServerContext } from '@modelcontextprotocol/server';
-import type { OAuth2Client } from 'google-auth-library';
 import type { Keyv } from 'keyv';
 
 // Re-export error class
@@ -98,15 +97,31 @@ export interface LoopbackOAuthConfig {
 // =============================================================================
 
 /**
+ * Supplies Google access tokens on demand.
+ *
+ * The whole contract between this package and a Google API client. It mirrors
+ * `@mcp-z/oauth-microsoft`, whose providers satisfy Graph's
+ * `AuthenticationProvider` with the same single method, and it is why this
+ * package needs no Google SDK of its own.
+ *
+ * @public
+ */
+export interface GoogleAuthProvider {
+  /** Resolves a currently-valid access token, refreshing if the provider needs to. */
+  getAccessToken: () => Promise<string>;
+}
+
+/**
  * Auth context injected into extra by middleware
  * @public
  */
 export interface AuthContext {
   /**
-   * OAuth2Client ready for googleapis
+   * Mints access tokens for this account. Pass it to a Google API client with
+   * `attachTokenProvider`; this package does not build the client itself.
    * GUARANTEED to exist when handler runs
    */
-  auth: OAuth2Client;
+  auth: GoogleAuthProvider;
 
   /**
    * Account being used (for logging, debugging)
