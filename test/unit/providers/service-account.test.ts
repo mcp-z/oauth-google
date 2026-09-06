@@ -15,7 +15,7 @@ import { ServiceAccountProvider } from '@mcp-z/oauth-google';
 import type { CallToolResult } from '@modelcontextprotocol/server';
 import assert from 'assert';
 import { promises as fs } from 'fs';
-import { driveFilesList } from '../../lib/google-rest.ts';
+import { driveFor } from '../../lib/google-clients.ts';
 import { createTestExtra, logger } from '../../lib/test-utils.ts';
 
 // Service account key file location (in package root)
@@ -496,7 +496,7 @@ describe('ServiceAccountProvider', () => {
       const token = await provider.toAuthProvider('service-account').getAccessToken();
 
       // Make a real API call - this would fail before our fix
-      const data = await driveFilesList(token, {
+      const { data } = await driveFor(token).files.list({
         pageSize: 5, // Small limit
         fields: 'files(id, name),nextPageToken',
         q: 'trashed = false', // Non-trashed files only
@@ -519,11 +519,9 @@ describe('ServiceAccountProvider', () => {
 
       // Test concurrent API calls (this exercises token caching and refresh)
       const apiCalls = Array.from({ length: 3 }, async () =>
-        driveFilesList(await auth.getAccessToken(), {
-          pageSize: 1,
-          fields: 'files(id)',
-          q: 'trashed = false',
-        })
+        driveFor(await auth.getAccessToken())
+          .files.list({ pageSize: 1, fields: 'files(id)', q: 'trashed = false' })
+          .then((r) => r.data)
       );
 
       const responses = await Promise.all(apiCalls);
@@ -544,12 +542,12 @@ describe('ServiceAccountProvider', () => {
 
       // First call - should set up cached token
       const token1 = await provider.toAuthProvider('service-account').getAccessToken();
-      const response1 = await driveFilesList(token1, { pageSize: 1, fields: 'files(id)' });
+      const { data: response1 } = await driveFor(token1).files.list({ pageSize: 1, fields: 'files(id)' });
       assert.ok(response1.files, 'First API call should succeed');
 
       // Second call - should reuse cached token (proves the token is minted once and kept)
       const token2 = await provider.toAuthProvider('service-account').getAccessToken();
-      const response2 = await driveFilesList(token2, { pageSize: 1, fields: 'files(id)' });
+      const { data: response2 } = await driveFor(token2).files.list({ pageSize: 1, fields: 'files(id)' });
       assert.ok(response2.files, 'Second API call should succeed');
     });
   });

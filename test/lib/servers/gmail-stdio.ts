@@ -22,7 +22,8 @@ import type { CallToolResult, ServerContext } from '@modelcontextprotocol/server
 import { McpServer } from '@modelcontextprotocol/server';
 import { StdioServerTransport } from '@modelcontextprotocol/server/stdio';
 import { z } from 'zod';
-import { gmailMessageMetadata, gmailMessagesList, userinfo } from '../google-rest.ts';
+import { gmailFor } from '../google-clients.ts';
+import { userinfo } from '../google-rest.ts';
 
 /**
  * Extract OAuth token from MCP context (stateless mode)
@@ -68,21 +69,28 @@ async function main() {
       const accessToken = extractTokenFromContext(extra as ServerContext);
 
       // Search messages
-      const response = await gmailMessagesList(accessToken, {
+      const gmail = gmailFor(accessToken);
+      const response = await gmail.users.messages.list({
+        userId: 'me',
         q: (args as { query?: string }).query || '',
         maxResults: 10,
       });
 
-      const messages = response.messages || [];
+      const messages = response.data.messages || [];
       const messageDetails = [];
 
       // Get subject for each message
       for (const message of messages.slice(0, 5)) {
         if (message.id) {
           try {
-            const messageResponse = await gmailMessageMetadata(accessToken, message.id, ['Subject']);
+            const messageResponse = await gmail.users.messages.get({
+              userId: 'me',
+              id: message.id,
+              format: 'metadata',
+              metadataHeaders: ['Subject'],
+            });
 
-            const headers = messageResponse.payload?.headers || [];
+            const headers = messageResponse.data.payload?.headers || [];
             const subjectHeader = headers.find((h) => h.name === 'Subject');
 
             messageDetails.push({
