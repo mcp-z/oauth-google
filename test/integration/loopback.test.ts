@@ -12,7 +12,7 @@
 import '../lib/env-loader.ts';
 
 import { addAccount, type CachedToken, createAccountKey, setActiveAccount, type ToolModule } from '@mcp-z/oauth';
-import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
+import type { CallToolResult } from '@modelcontextprotocol/server';
 /**
  * Single-User Mode Integration Tests
  * Tests authMiddleware() with real Google API calls
