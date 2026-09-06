@@ -15,14 +15,14 @@
 Handlers receive this type - never plain ServerContext</p>
 </div></section>
 <div class="tsd-signature"><span class="tsd-signature-keyword">interface</span> <span class="tsd-kind-interface">EnrichedExtra</span> <span class="tsd-signature-symbol">{</span><br/>    <a class="tsd-kind-property" href="#_meta">_meta</a><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-symbol">{</span> <span class="tsd-kind-property">accountId</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">;</span> <span class="tsd-signature-symbol">[</span><span class="tsd-kind-index-signature">key</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">]:</span> <span class="tsd-signature-type">unknown</span> <span class="tsd-signature-symbol">}</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#authcontext">authContext</a><span class="tsd-signature-symbol">:</span> <a href="AuthContext.html" class="tsd-signature-type tsd-kind-interface">AuthContext</a><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#logger">logger</a><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">Logger</span><span class="tsd-signature-symbol">;</span><br/><span class="tsd-signature-symbol">}</span></div>
-<section class="tsd-panel tsd-hierarchy" data-refl="37">
+<section class="tsd-panel tsd-hierarchy" data-refl="41">
 <h4>Hierarchy</h4>
 <ul class="tsd-hierarchy">
 <li class="tsd-hierarchy-item"><span class="tsd-signature-type">ServerContext</span>
 <ul class="tsd-hierarchy">
 <li class="tsd-hierarchy-item"><span class="tsd-hierarchy-target">EnrichedExtra</span></li></ul></li></ul></section><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/mcp-z/oauth-google/blob/e941f00af85f2e00fdae61a54fb46ca22b5d13d7/src/types.ts#L134">types.ts:134</a></li></ul></aside>
+<li>Defined in <a href="https://github.com/mcp-z/oauth-google/blob/2398df4bbbfb15ebffe8f29720ba12942fb727e3/src/types.ts#L149">types.ts:149</a></li></ul></aside>
 <section class="tsd-panel-group tsd-index-group">
 <section class="tsd-panel tsd-index-panel">
 <details class="tsd-index-content tsd-accordion" open><summary class="tsd-accordion-summary tsd-index-summary"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><use href="../assets/icons.svg#icon-chevronDown"></use></svg>
@@ -41,7 +41,7 @@ Handlers receive this type - never plain ServerContext</p>
 <h3 class="tsd-anchor-link" id="_meta"><code class="tsd-tag">Optional</code><span>_<wbr/>meta</span><a href="#_meta" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">_meta</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-symbol">{</span> <span class="tsd-kind-property">accountId</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">;</span> <span class="tsd-signature-symbol">[</span><span class="tsd-kind-index-signature">key</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">]:</span> <span class="tsd-signature-type">unknown</span> <span class="tsd-signature-symbol">}</span></div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/mcp-z/oauth-google/blob/e941f00af85f2e00fdae61a54fb46ca22b5d13d7/src/types.ts#L148">types.ts:148</a></li></ul></aside></section>
+<li>Defined in <a href="https://github.com/mcp-z/oauth-google/blob/2398df4bbbfb15ebffe8f29720ba12942fb727e3/src/types.ts#L163">types.ts:163</a></li></ul></aside></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="authcontext"><span>auth<wbr/>Context</span><a href="#authcontext" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">authContext</span><span class="tsd-signature-symbol">:</span> <a href="AuthContext.html" class="tsd-signature-type tsd-kind-interface">AuthContext</a></div>
@@ -49,7 +49,7 @@ Handlers receive this type - never plain ServerContext</p>
 GUARANTEED to exist (middleware catches auth failures)</p>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/mcp-z/oauth-google/blob/e941f00af85f2e00fdae61a54fb46ca22b5d13d7/src/types.ts#L139">types.ts:139</a></li></ul></aside></section>
+<li>Defined in <a href="https://github.com/mcp-z/oauth-google/blob/2398df4bbbfb15ebffe8f29720ba12942fb727e3/src/types.ts#L154">types.ts:154</a></li></ul></aside></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="logger"><span>logger</span><a href="#logger" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">logger</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">Logger</span></div>
@@ -57,7 +57,7 @@ GUARANTEED to exist (middleware catches auth failures)</p>
 GUARANTEED to exist</p>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/mcp-z/oauth-google/blob/e941f00af85f2e00fdae61a54fb46ca22b5d13d7/src/types.ts#L145">types.ts:145</a></li></ul></aside></section></section></details></div>
+<li>Defined in <a href="https://github.com/mcp-z/oauth-google/blob/2398df4bbbfb15ebffe8f29720ba12942fb727e3/src/types.ts#L160">types.ts:160</a></li></ul></aside></section></section></details></div>
 <div class="col-sidebar">
 <div class="page-menu">
 <div class="tsd-navigation settings">
