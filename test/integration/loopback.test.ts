@@ -27,7 +27,8 @@ import type { EnrichedExtra } from '../../src/types.ts';
 import { AuthRequiredError } from '../../src/types.ts';
 import { createConfig } from '../lib/config.ts';
 import { GOOGLE_SCOPE } from '../lib/constants.ts';
-import { driveFilesDelete, driveFilesList, gmailGetProfile, sheetsCreate, sheetsGet, userinfo } from '../lib/google-rest.ts';
+import { driveFor, gmailFor, sheetsFor } from '../lib/google-clients.ts';
+import { userinfo } from '../lib/google-rest.ts';
 import { createTestExtra, logger } from '../lib/test-utils.ts';
 
 const config = createConfig();
@@ -49,7 +50,7 @@ class AuthRequiredLoopbackProvider extends LoopbackOAuthProvider {
 
 describe('LoopbackOAuthProvider Integration Tests', () => {
   describe('Google APIs Integration', () => {
-    it('token works against the Drive API', async () => {
+    it('granted scopes reach the Drive API', async () => {
       const tokenStore = new Keyv({
         store: new KeyvFile({ filename: path.join(tokenStorePath, 'store.json') }),
       });
@@ -66,13 +67,13 @@ describe('LoopbackOAuthProvider Integration Tests', () => {
 
       const token = await auth.toAuthProvider().getAccessToken(); // Use active account (set by test:setup)
 
-      const data = await driveFilesList(token, { pageSize: 10, fields: 'files(id, name)' });
+      const response = await driveFor(token).files.list({ pageSize: 10, fields: 'files(id, name)' });
 
-      assert.ok(data, 'Should get drive data');
-      assert.ok(Array.isArray(data.files), 'Should have files array');
+      assert.ok(response.data, 'Should get drive data');
+      assert.ok(Array.isArray(response.data.files), 'Should have files array');
     });
 
-    it('token works against the Gmail API', async () => {
+    it('granted scopes reach the Gmail API', async () => {
       const tokenStore = new Keyv({
         store: new KeyvFile({ filename: path.join(tokenStorePath, 'store.json') }),
       });
@@ -89,14 +90,14 @@ describe('LoopbackOAuthProvider Integration Tests', () => {
 
       const token = await auth.toAuthProvider().getAccessToken(); // Use active account (set by test:setup)
 
-      const data = await gmailGetProfile(token);
+      const response = await gmailFor(token).users.getProfile({ userId: 'me' });
 
-      assert.ok(data, 'Should get profile data');
-      assert.ok(data.emailAddress, 'Should have email address');
-      assert.ok(data.messagesTotal !== undefined, 'Should have message count');
+      assert.ok(response.data, 'Should get profile data');
+      assert.ok(response.data.emailAddress, 'Should have email address');
+      assert.ok(response.data.messagesTotal !== undefined, 'Should have message count');
     });
 
-    it('token works against the Sheets API', async () => {
+    it('granted scopes reach the Sheets API', async () => {
       const tokenStore = new Keyv({
         store: new KeyvFile({ filename: path.join(tokenStorePath, 'store.json') }),
       });
@@ -114,24 +115,24 @@ describe('LoopbackOAuthProvider Integration Tests', () => {
       const token = await auth.toAuthProvider().getAccessToken(); // Use active account (set by test:setup)
 
       // Create a test spreadsheet
-      const created = await sheetsCreate(token, 'OAuth Test Spreadsheet');
+      const created = await sheetsFor(token).spreadsheets.create({ requestBody: { properties: { title: 'OAuth Test Spreadsheet' } } });
 
-      assert.ok(created.spreadsheetId, 'Should create spreadsheet');
+      assert.ok(created.data.spreadsheetId, 'Should create spreadsheet');
 
-      const spreadsheetId = created.spreadsheetId;
+      const spreadsheetId = created.data.spreadsheetId;
       if (!spreadsheetId) {
         throw new Error('Expected spreadsheetId in create response');
       }
 
       try {
         // Verify we can read it back
-        const fetched = await sheetsGet(token, spreadsheetId);
+        const fetched = await sheetsFor(token).spreadsheets.get({ spreadsheetId });
 
-        assert.ok(fetched, 'Should get spreadsheet data');
-        assert.strictEqual(fetched.properties?.title, 'OAuth Test Spreadsheet');
+        assert.ok(fetched.data, 'Should get spreadsheet data');
+        assert.strictEqual(fetched.data.properties?.title, 'OAuth Test Spreadsheet');
       } finally {
         // Clean up - delete the test spreadsheet
-        await driveFilesDelete(token, spreadsheetId);
+        await driveFor(token).files.delete({ fileId: spreadsheetId });
       }
     });
   });

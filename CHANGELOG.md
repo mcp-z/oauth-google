@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.0.2] - 2026-09-06
+
+### Fixed
+
+- An abandoned OAuth flow no longer keeps the host process alive. `startEphemeralOAuthFlow` starts an HTTP server for the callback and arms a 5-minute safety-net timer; neither was `unref`'d, so a flow that never completed — a headless caller, or a user who closes the browser — held an open socket and a live timer for up to five minutes. Both are `unref`'d now. A running server stays alive on its own transport as before.
+
 ## [2.0.1] - 2026-09-06
 
 ### Changed
