@@ -1,11 +1,10 @@
-import '../../lib/env-loader.ts';
-
 /**
  * DCR Utils Tests
  *
  * Tests for RFC 7591 Dynamic Client Registration client management and DCR token storage that maps DCR access tokens to provider tokens.
  */
 
+import '../../lib/env-loader.ts';
 import type { DcrClientMetadata, ProviderTokens } from '@mcp-z/oauth';
 import assert from 'assert';
 import Keyv from 'keyv';
