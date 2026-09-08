@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.0.3] - 2026-09-07
+
+### Fixed
+
+- The RFC 9728 protected-resource metadata at `/.well-known/oauth-protected-resource` named `baseUrl` as the `resource`, while the document at `/.well-known/oauth-protected-resource/mcp` named `${baseUrl}/mcp`. Two documents describing one protected resource gave it two different identifiers, and the root one named the deployment root — which is not a protected resource. A client that read it would audience-bind its token (RFC 8707) to the wrong identifier. Both documents now name the MCP endpoint.
+
 ## [2.0.2] - 2026-09-06
 
 ### Fixed

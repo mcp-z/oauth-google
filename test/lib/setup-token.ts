@@ -10,6 +10,7 @@
  *   node test/lib/setup-token.ts
  */
 
+import './env-loader.ts';
 import Keyv from 'keyv';
 import { KeyvFile } from 'keyv-file';
 import * as path from 'path';

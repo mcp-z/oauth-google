@@ -1,3 +1,4 @@
+import '../../lib/env-loader.ts';
 import { attachTokenProvider, type RefreshHandlerClient } from '@mcp-z/oauth-google';
 import assert from 'assert';
 

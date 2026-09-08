@@ -1,5 +1,3 @@
-import '../../lib/env-loader.ts';
-
 /**
  * DcrOAuthProvider Tests
  *
@@ -13,6 +11,7 @@ import '../../lib/env-loader.ts';
  * - Enriches extra with auth context from provider tokens
  */
 
+import '../../lib/env-loader.ts';
 import type { ProviderTokens } from '@mcp-z/oauth';
 import { DcrOAuthProvider, type EnrichedExtra, type ToolModule } from '@mcp-z/oauth-google';
 import type { CallToolResult } from '@modelcontextprotocol/server';

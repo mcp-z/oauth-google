@@ -10,6 +10,7 @@
  * 3. Place as service-account.test.json in oauth-google root (see service-account.test.example.json)
  */
 
+import '../../lib/env-loader.ts';
 import type { AuthContext, EnrichedExtra, ToolModule } from '@mcp-z/oauth-google';
 import { ServiceAccountProvider } from '@mcp-z/oauth-google';
 import type { CallToolResult } from '@modelcontextprotocol/server';
