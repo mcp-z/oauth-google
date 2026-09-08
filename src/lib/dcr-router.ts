@@ -15,7 +15,7 @@
  * - GET /oauth/verify (token verification for Resource Server)
  */
 
-import type { ProviderTokens, RFC8414Metadata, RFC9728Metadata } from '@mcp-z/oauth';
+import { type CimdClientMetadataDocument, type CimdResolver, createCimdResolver, type ProviderTokens, type RFC8414Metadata, type RFC9728Metadata } from '@mcp-z/oauth';
 import { createHash, randomUUID } from 'crypto';
 import type { Request, Response } from 'express';
 import express from 'express';
@@ -23,6 +23,16 @@ import type { Keyv } from 'keyv';
 import { DcrOAuthProvider } from '../providers/dcr.ts';
 import type { AccessToken, AuthorizationCode, OAuthClientConfig } from '../types.ts';
 import * as dcrUtils from './dcr-utils.ts';
+
+function isCimdClientId(clientId: unknown): clientId is string {
+  if (typeof clientId !== 'string') return false;
+  try {
+    const url = new URL(clientId);
+    return (url.protocol === 'https:' || url.protocol === 'http:') && url.hostname !== '' && url.username === '' && url.password === '' && url.hash === '';
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Configuration for DCR Router (self-hosted mode only)
@@ -42,6 +52,9 @@ export interface DcrRouterConfig {
 
   /** OAuth client configuration for upstream provider */
   clientConfig: OAuthClientConfig;
+
+  /** Optional CIMD resolver; the default is the secure shared resolver. */
+  cimdResolver?: CimdResolver;
 }
 
 /**
@@ -56,6 +69,7 @@ export interface DcrRouterConfig {
 export function createDcrRouter(config: DcrRouterConfig): express.Router {
   const router = express.Router();
   const { store, issuerUrl, baseUrl, scopesSupported, clientConfig } = config;
+  const cimdResolver = config.cimdResolver ?? createCimdResolver();
 
   router.use('/mcp', (req: Request, res: Response, next) => {
     const authHeader = req.headers.authorization || req.headers.Authorization;
@@ -95,7 +109,8 @@ export function createDcrRouter(config: DcrRouterConfig): express.Router {
       scopes_supported: scopesSupported,
       response_types_supported: ['code'],
       grant_types_supported: ['authorization_code', 'refresh_token'],
-      token_endpoint_auth_methods_supported: ['client_secret_basic', 'client_secret_post'],
+      client_id_metadata_document_supported: true,
+      token_endpoint_auth_methods_supported: ['client_secret_basic', 'client_secret_post', 'none'],
       code_challenge_methods_supported: ['S256'],
       // RFC 9207: a client that sees this flag must treat an authorization response
       // without `iss` as a failure, so the callback redirect below always carries it.
@@ -206,7 +221,23 @@ export function createDcrRouter(config: DcrRouterConfig): express.Router {
       });
     }
 
-    const client = await dcrUtils.getClient(store, client_id);
+    let client: { redirect_uris?: string[] } | undefined = await dcrUtils.getClient(store, client_id);
+    const clientIdIsUrl = /^https?:\/\//i.test(client_id);
+    let isCimdClient = false;
+    if (!client && clientIdIsUrl) {
+      if (!isCimdClientId(client_id)) {
+        return res.status(400).json({ error: 'invalid_client', error_description: 'Unknown client_id' });
+      }
+      try {
+        const resolvedClient: CimdClientMetadataDocument = await cimdResolver.resolve(client_id);
+        if (resolvedClient.client_id !== client_id || (resolvedClient.token_endpoint_auth_method !== undefined && resolvedClient.token_endpoint_auth_method !== 'none')) throw new Error('Unsupported client authentication method');
+        client = resolvedClient;
+        isCimdClient = true;
+      } catch {
+        // Resolution failures are deliberately indistinguishable from unknown clients.
+        return res.status(400).json({ error: 'invalid_client', error_description: 'Unknown client_id' });
+      }
+    }
     if (!client) {
       return res.status(400).json({
         error: 'invalid_client',
@@ -214,7 +245,7 @@ export function createDcrRouter(config: DcrRouterConfig): express.Router {
       });
     }
 
-    const isValidRedirect = await dcrUtils.validateRedirectUri(store, client_id, redirect_uri);
+    const isValidRedirect = isCimdClient ? (client.redirect_uris?.includes(redirect_uri) ?? false) : await dcrUtils.validateRedirectUri(store, client_id, redirect_uri);
     if (!isValidRedirect) {
       return res.status(400).json({
         error: 'invalid_request',
@@ -231,6 +262,7 @@ export function createDcrRouter(config: DcrRouterConfig): express.Router {
       redirect_uri,
       scope: effectiveScope,
       state: typeof state === 'string' ? state : undefined,
+      ...(isCimdClient && { client_type: 'cimd' as const }),
       code_challenge: typeof code_challenge === 'string' ? code_challenge : undefined,
       code_challenge_method: typeof code_challenge_method === 'string' ? code_challenge_method : undefined,
       created_at: Date.now(),
@@ -351,6 +383,7 @@ export function createDcrRouter(config: DcrRouterConfig): express.Router {
       scope: dcrRequestState.scope,
       ...(dcrRequestState.code_challenge && { code_challenge: dcrRequestState.code_challenge }),
       ...(dcrRequestState.code_challenge_method && { code_challenge_method: dcrRequestState.code_challenge_method }),
+      ...(dcrRequestState.client_type && { client_type: dcrRequestState.client_type }),
       providerTokens,
       created_at: Date.now(),
       expires_at: Date.now() + 600000, // 10 minutes
@@ -405,16 +438,18 @@ export function createDcrRouter(config: DcrRouterConfig): express.Router {
         });
       }
 
-      // Validate client credentials
-      const isValidClient = await dcrUtils.validateClient(store, client_id, client_secret ?? '');
-      if (!isValidClient) {
-        return res.status(401).json({
-          error: 'invalid_client',
-          error_description: 'Invalid client credentials',
-        });
-      }
-
       const authCode = await dcrUtils.getAuthCode(store, code);
+      if (authCode?.client_type !== 'cimd') {
+        const isValidClient = await dcrUtils.validateClient(store, client_id, client_secret ?? '');
+        if (!isValidClient) {
+          return res.status(401).json({
+            error: 'invalid_client',
+            error_description: 'Invalid client credentials',
+          });
+        }
+      } else if (client_secret !== undefined) {
+        return res.status(401).json({ error: 'invalid_client', error_description: 'Invalid client credentials' });
+      }
       if (!authCode) {
         return res.status(400).json({
           error: 'invalid_grant',
@@ -485,6 +520,7 @@ export function createDcrRouter(config: DcrRouterConfig): express.Router {
         refresh_token: refreshTokenValue,
         scope: authCode.scope,
         client_id,
+        ...(authCode.client_type && { client_type: authCode.client_type }),
         providerTokens: authCode.providerTokens,
         created_at: Date.now(),
       };
@@ -509,15 +545,18 @@ export function createDcrRouter(config: DcrRouterConfig): express.Router {
         });
       }
 
-      const isValidClient = await dcrUtils.validateClient(store, client_id, client_secret ?? '');
-      if (!isValidClient) {
-        return res.status(401).json({
-          error: 'invalid_client',
-          error_description: 'Invalid client credentials',
-        });
-      }
-
       const tokenData = await dcrUtils.getRefreshToken(store, refresh_token);
+      if (tokenData?.client_type !== 'cimd') {
+        const isValidClient = await dcrUtils.validateClient(store, client_id, client_secret ?? '');
+        if (!isValidClient) {
+          return res.status(401).json({
+            error: 'invalid_client',
+            error_description: 'Invalid client credentials',
+          });
+        }
+      } else if (client_secret !== undefined) {
+        return res.status(401).json({ error: 'invalid_client', error_description: 'Invalid client credentials' });
+      }
       if (!tokenData || tokenData.client_id !== client_id) {
         return res.status(400).json({
           error: 'invalid_grant',

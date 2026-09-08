@@ -7,7 +7,7 @@ OAuth 2.0 client for Google APIs with multi-account support, PKCE security, and 
 - Gmail/Drive/Sheets OAuth in MCP servers
 - CLI and desktop OAuth flows
 - Service account auth for server-to-server access
-- DCR (self-hosted) for shared HTTP servers
+- DCR and Client ID Metadata Documents (self-hosted) for shared HTTP servers
 
 ## Install
 
@@ -60,9 +60,11 @@ const provider = new ServiceAccountProvider({
 });
 ```
 
-### DCR (self-hosted)
+### DCR and CIMD (self-hosted)
 
-Use `DcrOAuthProvider` for bearer validation and `createDcrRouter` to host the DCR endpoints.
+Use `DcrOAuthProvider` for bearer validation and `createDcrRouter` to host DCR endpoints and accept CIMD clients.
+The router uses a secure CIMD resolver by default. Pass an optional `cimdResolver` from
+`@mcp-z/oauth` when local development needs an explicit loopback policy.
 
 ```ts
 import { DcrOAuthProvider, createDcrRouter } from '@mcp-z/oauth-google';
@@ -84,6 +86,15 @@ const router = createDcrRouter({
     clientSecret: process.env.GOOGLE_CLIENT_SECRET!
   }
 });
+```
+
+For local development only, create a resolver with an explicit HTTP loopback opt-in and pass it
+as `cimdResolver` in the router configuration:
+
+```ts
+import { createCimdResolver } from '@mcp-z/oauth';
+
+const cimdResolver = createCimdResolver({ allowHttpLoopback: true });
 ```
 
 ## Config helpers

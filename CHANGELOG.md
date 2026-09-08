@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.2.0] - 2026-09-07
+
+### Added
+
+- Authorization servers now accept Client ID Metadata Documents alongside dynamic client registration. Public-client authorization-code exchanges require PKCE, and refresh-token exchanges are bound to the CIMD client ID.
+
 ## [2.1.0] - 2026-09-07
 
 ### Added
