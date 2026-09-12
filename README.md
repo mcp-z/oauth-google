@@ -12,7 +12,7 @@ OAuth 2.0 client for Google APIs with multi-account support, PKCE security, and 
 ## Install
 
 ```bash
-npm install @mcp-z/oauth-google keyv
+npm install @mcp-z/oauth-google keyv keyv-file
 ```
 
 ## Create a Google Cloud app
@@ -22,10 +22,10 @@ npm install @mcp-z/oauth-google keyv
 3. Enable the API you need (Gmail, Drive, or Sheets).
 4. Create OAuth 2.0 credentials (Desktop app).
 5. Copy the Client ID and Client Secret.
-6. Select your MCP transport (stdio for local and http for remote) and platform
-- For stdio, choose "APIs & Services", + Create client, "Desktop app" type
-- For http, choose "APIs & Services", + Create client, "Web application" type, add your URL (default is http://localhost:3000/oauth/callback based on the --port or PORT)
-- For local hosting, add "http://127.0.0.1" for [Ephemeral redirect URL](https://en.wikipedia.org/wiki/Ephemeral_port)
+6. Select the credential type that matches your deployment:
+   - For a local stdio client, create a "Desktop app" OAuth client.
+   - For an HTTP server, create a "Web application" client and add its public `/oauth/callback` URL. Local HTTP uses the port configured by the server.
+   - For local hosting, add `http://127.0.0.1` for the [ephemeral redirect URL](https://en.wikipedia.org/wiki/Ephemeral_port).
 
 ## OAuth modes
 
@@ -47,6 +47,9 @@ const provider = new LoopbackOAuthProvider({
   scope: 'https://www.googleapis.com/auth/gmail.modify',
   tokenStore: new Keyv({ store: new KeyvFile({ filename: '.tokens/google.json' }) })
 });
+
+const accessToken = await provider.getAccessToken();
+// Opens the browser for consent when no valid token is stored, then returns a token.
 ```
 
 ### Service account
@@ -58,7 +61,11 @@ const provider = new ServiceAccountProvider({
   keyFilePath: '/path/to/service-account.json',
   scopes: ['https://www.googleapis.com/auth/drive']
 });
+
+const accessToken = await provider.getAccessToken();
 ```
+
+The service-account key file must exist and be readable by the process, and the APIs in `scopes` must be enabled for the Google Cloud project. Loopback OAuth opens a browser for consent (or returns an authorization URL in headless mode) and stores the resulting token.
 
 ### DCR and CIMD (self-hosted)
 
@@ -108,8 +115,8 @@ Use `parseConfig()` and `parseDcrConfig()` to load CLI + env settings for server
 
 ## Requirements
 
-- Node.js >= 22
+- Node.js >= 18
 
-### Documentation
+## Documentation
 
 [API Docs](https://mcp-z.github.io/oauth-google)
