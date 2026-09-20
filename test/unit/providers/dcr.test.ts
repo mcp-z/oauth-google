@@ -207,7 +207,12 @@ describe('DcrOAuthProvider - Integration with Google APIs', () => {
       providerExpiresAt: number;
     }
 
-    const storedTokens = (await dcrStore.get('google')) as DcrTokenData | undefined;
+    let storedTokens: DcrTokenData | undefined;
+    try {
+      storedTokens = (await dcrStore.get('google')) as DcrTokenData | undefined;
+    } finally {
+      await dcrStore.disconnect();
+    }
     if (!storedTokens || !storedTokens.providerRefreshToken) {
       throw new Error('No stored DCR tokens found. Run npm run test:setup first to create test tokens.');
     }
@@ -232,9 +237,23 @@ describe('DcrOAuthProvider - Integration with Google APIs', () => {
     console.log('🔄 Refreshing tokens with real Google endpoint...');
     const refreshedTokens = await provider.refreshAccessToken(storedTokens.providerRefreshToken);
 
+    const updatedDcrStore = new Keyv({ store: new KeyvFile({ filename: path.join(process.cwd(), '.tokens/dcr.json') }) });
+    try {
+      const latest = (await updatedDcrStore.get('google')) as DcrTokenData | undefined;
+      if (!latest) throw new Error('Stored Google DCR credentials disappeared during refresh');
+      await updatedDcrStore.set('google', {
+        ...latest,
+        providerAccessToken: refreshedTokens.accessToken,
+        providerRefreshToken: refreshedTokens.refreshToken ?? latest.providerRefreshToken,
+        providerExpiresAt: refreshedTokens.expiresAt ?? latest.providerExpiresAt,
+      });
+    } finally {
+      await updatedDcrStore.disconnect();
+    }
+
     assert.ok(refreshedTokens.accessToken, 'Should return new access token');
     assert.ok(refreshedTokens.accessToken !== storedTokens.providerAccessToken || refreshedTokens.expiresAt, 'Should have new token or fresh expiry');
-    console.log(`✅ Refreshed token: ${refreshedTokens.accessToken.substring(0, 20)}...`);
+    console.log('✅ Refreshed token received');
 
     // Verify the refreshed token works by calling getUserEmail
     console.log('🔍 Verifying refreshed token with Google userinfo API...');
@@ -248,10 +267,10 @@ describe('DcrOAuthProvider - Integration with Google APIs', () => {
     this.timeout(10000);
 
     // Use DCR test credentials
-    const dcrClientId = process.env.GOOGLE_CLIENT_ID;
+    const dcrClientId = process.env.GOOGLE_TEST_DCR_CLIENT_ID;
     const dcrClientSecret = process.env.GOOGLE_TEST_DCR_CLIENT_SECRET;
     if (!dcrClientId) {
-      throw new Error('GOOGLE_CLIENT_ID environment variable required. Configure in .env.test');
+      throw new Error('GOOGLE_TEST_DCR_CLIENT_ID environment variable required. Configure in .env.test');
     }
 
     const provider = new DcrOAuthProvider({

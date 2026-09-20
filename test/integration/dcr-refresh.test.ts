@@ -2,11 +2,13 @@
  * DCR Router Refresh Tests (Google)
  *
  * Tests the /oauth/token endpoint with grant_type=refresh_token
- * This validates the two-level refresh: DCR tokens AND underlying Google provider tokens
+ * Calls Google's real token endpoint and checks both DCR and provider-token persistence.
  */
 
 import '../lib/env-loader.ts';
 import assert from 'assert';
+import { randomUUID } from 'crypto';
+import { mkdir, unlink } from 'fs/promises';
 import getPort from 'get-port';
 import Keyv from 'keyv';
 import { KeyvFile } from 'keyv-file';
@@ -32,17 +34,35 @@ async function loadDcrTokens(): Promise<DcrTokenData | undefined> {
   const dcrStore = new Keyv({
     store: new KeyvFile({ filename: dcrTokenPath }),
   });
-  return (await dcrStore.get('google')) as DcrTokenData | undefined;
+  try {
+    return (await dcrStore.get('google')) as DcrTokenData | undefined;
+  } finally {
+    await dcrStore.disconnect();
+  }
 }
 
 describe('DCR Router Refresh Tests (Google)', () => {
   let dcrCleanup: (() => Promise<void>) | undefined;
   let serverStore: Keyv;
+  let activeServerStore: Keyv | undefined;
+  let serverStorePath: string | undefined;
 
   afterEach(async () => {
     if (dcrCleanup) {
       await dcrCleanup();
       dcrCleanup = undefined;
+    }
+    if (activeServerStore) {
+      await activeServerStore.disconnect();
+      activeServerStore = undefined;
+    }
+    if (serverStorePath) {
+      try {
+        await unlink(serverStorePath);
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+      }
+      serverStorePath = undefined;
     }
   });
 
@@ -65,6 +85,9 @@ describe('DCR Router Refresh Tests (Google)', () => {
     // Get dynamic port to avoid conflicts
     const port = await getPort();
     const baseUrl = `http://127.0.0.1:${port}`;
+    await mkdir(path.resolve('.tmp'), { recursive: true });
+    serverStorePath = path.resolve('.tmp', `dcr-refresh-${randomUUID()}.json`);
+    const persistentStore = new Keyv({ store: new KeyvFile({ filename: serverStorePath }) });
 
     // Start DCR test server
     const serverResult = await startDcrTestServer({
@@ -73,9 +96,11 @@ describe('DCR Router Refresh Tests (Google)', () => {
       scopes: [GOOGLE_SCOPE],
       clientId,
       clientSecret,
+      store: persistentStore,
     });
     dcrCleanup = serverResult.close;
     serverStore = serverResult.store;
+    activeServerStore = serverStore;
 
     // Register a client in the server's store (client_id and client_secret are generated)
     const registeredClient = await dcrUtils.registerClient(serverStore, {
@@ -134,11 +159,52 @@ describe('DCR Router Refresh Tests (Google)', () => {
     };
 
     assert.ok(tokenData.access_token, 'Should return new access token');
-    assert.notStrictEqual(tokenData.access_token, initialAccessToken, 'New token should be different from old');
+    assert.ok(tokenData.access_token !== initialAccessToken, 'New access token must differ from the previous token');
     assert.strictEqual(tokenData.token_type, 'Bearer', 'Token type should be Bearer');
-    console.log(`✅ New DCR access token: ${tokenData.access_token.substring(0, 20)}...`);
+    console.log('✅ New DCR access token received');
 
-    // Verify new token works with /oauth/verify
+    const refreshedProviderTokens = await dcrUtils.getProviderTokens(serverStore, tokenData.access_token);
+    if (!refreshedProviderTokens?.accessToken) throw new Error('Refreshed provider tokens were not stored for the new DCR access token');
+
+    // Save the provider credentials before later checks.
+    // This keeps any returned refresh replacement available for the next run.
+    storedTokens.providerAccessToken = refreshedProviderTokens.accessToken;
+    storedTokens.providerRefreshToken = refreshedProviderTokens.refreshToken ?? storedTokens.providerRefreshToken;
+    storedTokens.providerExpiresAt = refreshedProviderTokens.expiresAt ?? storedTokens.providerExpiresAt;
+    const dcrTokenPath = path.join(process.cwd(), '.tokens/dcr.json');
+    const dcrStore = new Keyv({ store: new KeyvFile({ filename: dcrTokenPath }) });
+    const persistedRefreshToken = refreshedProviderTokens.refreshToken ?? storedTokens.providerRefreshToken;
+    try {
+      await dcrStore.set('google', storedTokens);
+    } finally {
+      await dcrStore.disconnect();
+    }
+    const reopenedDcrStore = new Keyv({ store: new KeyvFile({ filename: dcrTokenPath }) });
+    try {
+      const persisted = (await reopenedDcrStore.get('google')) as DcrTokenData | undefined;
+      assert.ok(persisted?.providerAccessToken === refreshedProviderTokens.accessToken, 'Refreshed provider access token must persist');
+      assert.ok(persisted?.providerRefreshToken === persistedRefreshToken, 'Any provider refresh replacement must persist');
+    } finally {
+      await reopenedDcrStore.disconnect();
+    }
+
+    const accessBeforeVerify = await dcrUtils.getAccessToken(serverStore, tokenData.access_token);
+    if (!accessBeforeVerify) throw new Error('DCR access record was not persisted');
+    const expiringTokenData = {
+      ...accessBeforeVerify,
+      providerTokens: { ...accessBeforeVerify.providerTokens, expiresAt: Date.now() - 1000 },
+    };
+    await dcrUtils.setAccessToken(serverStore, tokenData.access_token, expiringTokenData);
+    await dcrUtils.setRefreshToken(serverStore, refreshToken, expiringTokenData);
+    await dcrUtils.setProviderTokens(serverStore, tokenData.access_token, expiringTokenData.providerTokens);
+    const accessExpiryBefore = (await serverStore.get<AccessToken>(`dcr:access:${tokenData.access_token}`, { raw: true }))?.expires;
+    const refreshExpiryBefore = (await serverStore.get<AccessToken>(`dcr:refresh:${refreshToken}`, { raw: true }))?.expires;
+    const providerExpiryBefore = (await serverStore.get(`dcr:provider:${tokenData.access_token}`, { raw: true }))?.expires;
+    if (accessExpiryBefore === undefined || refreshExpiryBefore === undefined || providerExpiryBefore === undefined) {
+      throw new Error('Expected file-backed DCR records to include expiry metadata');
+    }
+
+    // Verify refreshes and persists provider credentials before returning them.
     const verifyResponse = await fetch(`${baseUrl}/oauth/verify`, {
       headers: { Authorization: `Bearer ${tokenData.access_token}` },
     });
@@ -146,11 +212,50 @@ describe('DCR Router Refresh Tests (Google)', () => {
     assert.ok(verifyResponse.ok, 'New token should be verifiable');
     const verifyData = (await verifyResponse.json()) as {
       token: string;
-      providerTokens: { accessToken: string; refreshToken?: string };
+      providerTokens: { accessToken: string; refreshToken?: string; expiresAt?: number };
     };
 
-    assert.strictEqual(verifyData.token, tokenData.access_token, 'Verify should return same token');
+    const renewed = await dcrUtils.getRefreshToken(serverStore, refreshToken);
+    if (!renewed) throw new Error('DCR refresh record was not persisted after provider refresh');
+    storedTokens.providerAccessToken = renewed.providerTokens.accessToken;
+    storedTokens.providerRefreshToken = renewed.providerTokens.refreshToken ?? storedTokens.providerRefreshToken;
+    storedTokens.providerExpiresAt = renewed.providerTokens.expiresAt ?? storedTokens.providerExpiresAt;
+    const sourceStore = new Keyv({ store: new KeyvFile({ filename: dcrTokenPath }) });
+    try {
+      await sourceStore.set('google', storedTokens);
+    } finally {
+      await sourceStore.disconnect();
+    }
+
+    const accessAfter = await serverStore.get<AccessToken>(`dcr:access:${tokenData.access_token}`, { raw: true });
+    const refreshAfter = await serverStore.get<AccessToken>(`dcr:refresh:${refreshToken}`, { raw: true });
+    const providerAfter = await serverStore.get(`dcr:provider:${tokenData.access_token}`, { raw: true });
+    if (accessAfter?.expires === undefined || refreshAfter?.expires === undefined || providerAfter?.expires === undefined) {
+      throw new Error('Refreshed file-backed DCR records must retain expiry metadata');
+    }
+
+    assert.ok(verifyData.token === tokenData.access_token, 'Verification must return the submitted DCR access token');
     assert.ok(verifyData.providerTokens.accessToken, 'Should have provider access token');
+    assert.ok(renewed.created_at === accessBeforeVerify.created_at, 'Provider refresh must preserve DCR token created_at');
+    assert.ok(renewed.expires_in === accessBeforeVerify.expires_in, 'Provider refresh must preserve DCR token expires_in');
+    assert.ok(accessAfter.expires <= accessExpiryBefore + 500, 'Verification must not extend the access-token store expiry');
+    assert.ok(refreshAfter.expires <= refreshExpiryBefore + 500, 'Verification must not extend the refresh-token store expiry');
+    assert.ok(providerAfter.expires <= providerExpiryBefore + 500, 'Verification must not extend the provider-token index expiry');
+    const renewedAccess = await dcrUtils.getAccessToken(serverStore, tokenData.access_token);
+    assert.ok(renewedAccess?.providerTokens.accessToken === renewed.providerTokens.accessToken, 'Access record must persist the refreshed provider access token');
+    assert.ok(renewedAccess?.providerTokens.refreshToken === renewed.providerTokens.refreshToken, 'Access record must persist the provider refresh token');
+    assert.ok(renewedAccess?.providerTokens.expiresAt === renewed.providerTokens.expiresAt, 'Access record must persist the provider expiry');
+    assert.ok(verifyData.providerTokens.accessToken === renewed.providerTokens.accessToken, 'Verification must return the persisted provider access token');
+    assert.ok(verifyData.providerTokens.refreshToken === renewed.providerTokens.refreshToken, 'Verification must return the persisted provider refresh token');
+    assert.ok(verifyData.providerTokens.expiresAt === renewed.providerTokens.expiresAt, 'Verification must return the persisted provider expiry');
+
+    const nextVerifyResponse = await fetch(`${baseUrl}/oauth/verify`, {
+      headers: { Authorization: `Bearer ${tokenData.access_token}` },
+    });
+    assert.ok(nextVerifyResponse.ok, 'The next request must verify successfully');
+    const nextVerifyData = (await nextVerifyResponse.json()) as { providerTokens: { accessToken: string; refreshToken?: string } };
+    assert.ok(nextVerifyData.providerTokens.accessToken === verifyData.providerTokens.accessToken, 'The next request must reuse the persisted provider access token');
+    assert.ok(nextVerifyData.providerTokens.refreshToken === verifyData.providerTokens.refreshToken, 'The next request must reuse the persisted provider refresh token');
     console.log('✅ New token verified successfully');
     console.log('✅ Router refresh test passed!');
   });
@@ -179,6 +284,7 @@ describe('DCR Router Refresh Tests (Google)', () => {
     });
     dcrCleanup = serverResult.close;
     serverStore = serverResult.store;
+    activeServerStore = serverStore;
 
     // Register a client (client_id and client_secret are generated)
     const registeredClient = await dcrUtils.registerClient(serverStore, {

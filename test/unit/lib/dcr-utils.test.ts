@@ -11,6 +11,7 @@ import Keyv from 'keyv';
 import { KeyvFile } from 'keyv-file';
 import * as path from 'path';
 import * as dcrUtils from '../../../src/lib/dcr-utils.ts';
+import type { AccessToken } from '../../../src/types.ts';
 
 // Use isolated test storage
 const clientStorePath = path.join('.tmp', `client-store-test-${Date.now()}.json`);
@@ -272,4 +273,69 @@ it('dcrUtils - handles tokens without refresh token', async () => {
 
   assert.ok(retrieved, 'Tokens should be retrieved');
   assert.strictEqual(retrieved?.refreshToken, undefined);
+});
+
+it('dcrUtils - does not recreate a missing DCR refresh record while persisting provider refresh', async () => {
+  const store = new Keyv();
+  try {
+    const tokenData: AccessToken = {
+      access_token: 'dcr_access_for_provider_refresh',
+      token_type: 'Bearer',
+      expires_in: 3600,
+      refresh_token: 'revoked_dcr_refresh_record',
+      scope: 'openid email',
+      client_id: 'dcr_client',
+      providerTokens: { accessToken: 'new_provider_access', refreshToken: 'new_provider_refresh' },
+      created_at: Date.now(),
+    };
+
+    await dcrUtils.setAccessToken(store, tokenData.access_token, tokenData);
+    await dcrUtils.setProviderTokens(store, tokenData.access_token, tokenData.providerTokens);
+    await dcrUtils.persistProviderTokenRefresh(store, tokenData);
+
+    assert.ok((await dcrUtils.getRefreshToken(store, tokenData.refresh_token as string)) === undefined, 'Missing or revoked DCR refresh records must stay absent');
+  } finally {
+    await store.disconnect();
+  }
+});
+
+it('dcrUtils - preserves existing DCR store expiry and token lifetime during provider refresh persistence', async () => {
+  const store = new Keyv();
+  try {
+    const tokenData: AccessToken = {
+      access_token: 'dcr_access_for_provider_refresh_ttl',
+      token_type: 'Bearer',
+      expires_in: 3600,
+      refresh_token: 'existing_dcr_refresh_record',
+      scope: 'openid email',
+      client_id: 'dcr_client',
+      providerTokens: { accessToken: 'new_provider_access', refreshToken: 'new_provider_refresh' },
+      created_at: Date.now(),
+    };
+    await dcrUtils.setAccessToken(store, tokenData.access_token, tokenData);
+    await dcrUtils.setRefreshToken(store, tokenData.refresh_token as string, tokenData);
+    await dcrUtils.setProviderTokens(store, tokenData.access_token, tokenData.providerTokens);
+    const accessBefore = await store.get<AccessToken>(`dcr:access:${tokenData.access_token}`, { raw: true });
+    const refreshBefore = await store.get<AccessToken>(`dcr:refresh:${tokenData.refresh_token}`, { raw: true });
+    const providerBefore = await store.get(`dcr:provider:${tokenData.access_token}`, { raw: true });
+    if (accessBefore?.expires === undefined || refreshBefore?.expires === undefined || providerBefore?.expires === undefined) {
+      throw new Error('Expected Keyv expiry metadata for all DCR records');
+    }
+
+    await dcrUtils.persistProviderTokenRefresh(store, tokenData);
+
+    const accessAfter = await store.get<AccessToken>(`dcr:access:${tokenData.access_token}`, { raw: true });
+    const refreshAfter = await store.get<AccessToken>(`dcr:refresh:${tokenData.refresh_token}`, { raw: true });
+    const providerAfter = await store.get(`dcr:provider:${tokenData.access_token}`, { raw: true });
+    if (accessAfter?.expires === undefined || refreshAfter?.expires === undefined || providerAfter?.expires === undefined) {
+      throw new Error('Provider refresh must retain Keyv expiry metadata');
+    }
+    assert.ok(accessAfter.expires <= accessBefore.expires + 500, 'Access-token expiry must not be extended');
+    assert.ok(refreshAfter.expires <= refreshBefore.expires + 500, 'Refresh-token expiry must not be extended');
+    assert.ok(providerAfter.expires <= providerBefore.expires + 500, 'Provider-index expiry must not be extended');
+    assert.ok(accessAfter.value?.created_at === tokenData.created_at, 'DCR token created_at must remain unchanged');
+    assert.ok(accessAfter.value?.expires_in === tokenData.expires_in, 'DCR token expires_in must remain unchanged');
+  } finally {
+    await store.disconnect();
+  }
 });

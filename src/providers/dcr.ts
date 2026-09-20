@@ -10,6 +10,7 @@
 
 import type { ProviderTokens } from '@mcp-z/oauth';
 import { ProtocolError, ProtocolErrorCode } from '@modelcontextprotocol/server';
+import { createRefreshedToken } from '../lib/create-refreshed-token.ts';
 import type { AuthContext, EnrichedExtra, GoogleAuthProvider, Logger } from '../types.ts';
 
 /**
@@ -76,8 +77,8 @@ export class DcrOAuthProvider {
    * @param tokens - Provider tokens (Google access/refresh tokens)
    */
   toAuthProvider(tokens: ProviderTokens): GoogleAuthProvider {
-    // The tokens arrive from token verification and are refreshed in place, so the
-    // provider closes over them rather than re-reading a store it does not own.
+    // This closure owns only its request-local copy. The self-hosted DCR verify
+    // route persists expiring tokens before returning them to authMiddleware.
     let current = tokens;
 
     return {
@@ -149,20 +150,7 @@ export class DcrOAuthProvider {
 
     const tokenResponse = (await response.json()) as TokenResponse;
 
-    const result: ProviderTokens = {
-      accessToken: tokenResponse.access_token,
-      refreshToken: refreshToken, // Keep original refresh token
-    };
-
-    // Only add optional fields if they have values
-    if (tokenResponse.expires_in !== undefined) {
-      result.expiresAt = Date.now() + tokenResponse.expires_in * 1000;
-    }
-    if (tokenResponse.scope !== undefined) {
-      result.scope = tokenResponse.scope;
-    }
-
-    return result;
+    return createRefreshedToken(tokenResponse, refreshToken);
   }
 
   /**

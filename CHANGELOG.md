@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.2.2] - 2026-09-20
+
+### Fixed
+
+- Refresh flows now retain replacement provider refresh tokens and persist updated DCR credentials. Failed refreshes surface to callers instead of reusing stale tokens or starting an interactive flow in headless mode.
+
 ## [2.2.0] - 2026-09-07
 
 ### Added
