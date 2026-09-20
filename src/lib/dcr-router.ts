@@ -70,6 +70,18 @@ export function createDcrRouter(config: DcrRouterConfig): express.Router {
   const router = express.Router();
   const { store, issuerUrl, baseUrl, scopesSupported, clientConfig } = config;
   const cimdResolver = config.cimdResolver ?? createCimdResolver();
+  const createProvider = (scope: string) =>
+    new DcrOAuthProvider({
+      ...clientConfig,
+      scope,
+      verifyEndpoint: `${baseUrl}/oauth/verify`,
+      logger: {
+        info: console.log,
+        error: console.error,
+        warn: console.warn,
+        debug: () => {},
+      },
+    });
 
   router.use('/mcp', (req: Request, res: Response, next) => {
     const authHeader = req.headers.authorization || req.headers.Authorization;
@@ -567,24 +579,15 @@ export function createDcrRouter(config: DcrRouterConfig): express.Router {
       let refreshedProviderTokens = tokenData.providerTokens;
       if (tokenData.providerTokens.refreshToken) {
         try {
-          // Create DcrOAuthProvider instance to refresh Google tokens
-          const provider = new DcrOAuthProvider({
-            ...clientConfig,
-            scope: tokenData.scope,
-            verifyEndpoint: `${baseUrl}/oauth/verify`,
-            logger: {
-              info: console.log,
-              error: console.error,
-              warn: console.warn,
-              debug: () => {},
-            },
-          });
+          const provider = createProvider(tokenData.scope);
 
           // Refresh the Google access token
           refreshedProviderTokens = await provider.refreshAccessToken(tokenData.providerTokens.refreshToken);
         } catch (error) {
-          // If refresh fails, continue with existing tokens (they may still be valid)
-          console.warn('Provider token refresh failed, using existing tokens:', error instanceof Error ? error.message : String(error));
+          return res.status(502).json({
+            error: 'server_error',
+            error_description: `Google token refresh failed: ${error instanceof Error ? error.message : String(error)}`,
+          });
         }
       }
 
@@ -592,9 +595,11 @@ export function createDcrRouter(config: DcrRouterConfig): express.Router {
       const newTokenData: AccessToken = {
         ...tokenData,
         access_token: newAccessToken,
+        providerTokens: refreshedProviderTokens,
         created_at: Date.now(),
       };
 
+      await dcrUtils.setRefreshToken(store, refresh_token, newTokenData);
       await dcrUtils.setAccessToken(store, newAccessToken, newTokenData);
       await dcrUtils.setProviderTokens(store, newAccessToken, refreshedProviderTokens);
 
@@ -668,7 +673,7 @@ export function createDcrRouter(config: DcrRouterConfig): express.Router {
     }
 
     const token = authHeader.substring(7);
-    const tokenData = await dcrUtils.getAccessToken(store, token);
+    let tokenData = await dcrUtils.getAccessToken(store, token);
 
     if (!tokenData) {
       return res.status(401).json({
@@ -687,6 +692,26 @@ export function createDcrRouter(config: DcrRouterConfig): express.Router {
         error: 'invalid_token',
         error_description: 'Access token has expired',
       });
+    }
+
+    let providerTokens = tokenData.providerTokens;
+    if (providerTokens.expiresAt && Date.now() >= providerTokens.expiresAt - 60000 && providerTokens.refreshToken) {
+      try {
+        providerTokens = await createProvider(tokenData.scope).refreshAccessToken(providerTokens.refreshToken);
+      } catch {
+        return res.status(502).json({ error: 'server_error', error_description: 'Failed to refresh provider tokens' });
+      }
+    }
+    if (providerTokens !== tokenData.providerTokens) {
+      tokenData = { ...tokenData, providerTokens };
+      try {
+        await dcrUtils.persistProviderTokenRefresh(store, tokenData);
+      } catch {
+        return res.status(500).json({
+          error: 'server_error',
+          error_description: 'Failed to persist refreshed provider tokens',
+        });
+      }
     }
 
     const authInfo = {
