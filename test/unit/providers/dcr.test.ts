@@ -21,6 +21,7 @@ import type { Server } from 'http';
 import Keyv from 'keyv';
 import { KeyvFile } from 'keyv-file';
 import * as path from 'path';
+import { requiredEnv } from 'portable-env';
 import { z } from 'zod';
 import { createConfig } from '../../lib/config.ts';
 import { GOOGLE_SCOPE } from '../../lib/constants.ts';
@@ -219,15 +220,12 @@ describe('DcrOAuthProvider - Integration with Google APIs', () => {
 
     // Use DCR test credentials (these match the tokens in .tokens/dcr.json)
     // DCR uses a separate Web app client, NOT the loopback Desktop app client
-    const dcrClientId = process.env.GOOGLE_TEST_DCR_CLIENT_ID;
-    const dcrClientSecret = process.env.GOOGLE_TEST_DCR_CLIENT_SECRET;
-    if (!dcrClientId) {
-      throw new Error('GOOGLE_TEST_DCR_CLIENT_ID environment variable required. Configure in .env.test');
-    }
+    const dcrClientId = requiredEnv('GOOGLE_TEST_DCR_CLIENT_ID');
+    const dcrClientSecret = requiredEnv('GOOGLE_TEST_DCR_CLIENT_SECRET');
 
     const provider = new DcrOAuthProvider({
       clientId: dcrClientId,
-      ...(dcrClientSecret && { clientSecret: dcrClientSecret }),
+      clientSecret: dcrClientSecret,
       scope: GOOGLE_SCOPE,
       verifyEndpoint: 'http://test.invalid/oauth/verify',
       logger,
@@ -267,15 +265,12 @@ describe('DcrOAuthProvider - Integration with Google APIs', () => {
     this.timeout(10000);
 
     // Use DCR test credentials
-    const dcrClientId = process.env.GOOGLE_TEST_DCR_CLIENT_ID;
-    const dcrClientSecret = process.env.GOOGLE_TEST_DCR_CLIENT_SECRET;
-    if (!dcrClientId) {
-      throw new Error('GOOGLE_TEST_DCR_CLIENT_ID environment variable required. Configure in .env.test');
-    }
+    const dcrClientId = requiredEnv('GOOGLE_TEST_DCR_CLIENT_ID');
+    const dcrClientSecret = requiredEnv('GOOGLE_TEST_DCR_CLIENT_SECRET');
 
     const provider = new DcrOAuthProvider({
       clientId: dcrClientId,
-      ...(dcrClientSecret && { clientSecret: dcrClientSecret }),
+      clientSecret: dcrClientSecret,
       scope: GOOGLE_SCOPE,
       verifyEndpoint: 'http://test.invalid/oauth/verify',
       logger,

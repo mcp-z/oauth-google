@@ -11,7 +11,7 @@ import { assertDcrCallbackState, createDcrAuthorizationUrl, createDcrTokenBody }
 
 describe('integration/setup-dcr-token-pkce', () => {
   it('uses PKCE accepted by the real DCR authorize and token endpoints', async () => {
-    const port = await getPort();
+    const port = await getPort({ host: 'localhost' });
     const baseUrl = `http://localhost:${port}`;
     const redirectUri = 'http://localhost:51746/callback';
     const clientId = `dcr_${randomUUID()}`;

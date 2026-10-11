@@ -29,11 +29,6 @@ const config = createConfig();
 // Run `npm run test:setup` first to generate tokens
 const tokenStorePath = path.join(process.cwd(), '.tokens/test');
 
-it('LoopbackOAuthProvider - getAccessToken returns valid token', async () => {
-  // Skip this test - it's covered by the next test which validates googleapis compatibility
-  // This test would require setting up account management state which is better tested in middleware tests
-});
-
 it('LoopbackOAuthProvider - toAuthProvider provides googleapis-compatible auth', async () => {
   const tokenStore = new Keyv({
     store: new KeyvFile({ filename: path.join(tokenStorePath, 'store.json') }),
