@@ -13,28 +13,7 @@ A few conventions here differ from what you might expect:
 
 ## Branches
 
-Two lines. `master` is the current major and where all new work goes; `support/1.x` maintains the 1.x line for consumers who have not migrated.
-
-    master          2.x    current    the v2 MCP SDK, both protocol eras
-    support/1.x     1.x    security fixes only, cut at v1.2.2
-
-Check which one you are on before editing:
-
-```bash
-git rev-parse --abbrev-ref HEAD
-```
-
-Features, dependency migrations and API changes go to `master` only. A security fix that also affects 1.x is **cherry-picked** to `support/1.x` — never merge the branches into each other, in either direction.
-
-This file is the 1.x line's guide too. It lives only on `master` so it cannot drift between the lines; from `support/1.x`, read it with `git show master:CONTRIBUTING.md`.
-
-Releasing `support/1.x` carries one trap. `npm publish` moves `latest` to the highest version published, so a 1.x release made after 2.0.0 exists must name its dist-tag or every bare `npm install @mcp-z/oauth-google` serves the old line:
-
-```bash
-npm publish --tag support-1
-```
-
-`prepublishOnly` refuses a bare publish from `support/1.x`, so forgetting the flag fails the publish rather than moving `latest`. `npm dist-tag add @mcp-z/oauth-google@<version> latest` reverses a mistake at any time.
+`master` is the only maintained release line. The 1.x line is retired and receives no fixes. All changes target `master`.
 
 ## Pre-Commit Commands
 
@@ -66,18 +45,21 @@ Specs live in `test/unit/`, mirroring `src/`. Cross-service specs live in `test/
 
 ### Google OAuth App Configuration
 
-All tests (including DCR integration tests) use a single OAuth app. Configure it as a **Desktop app** in Google Cloud Console:
+Loopback tests use a **Desktop app**. DCR tests use a separate **Web application** client with its own client ID and required secret.
 
 1. Go to [Google Cloud Console](https://console.cloud.google.com/apis/credentials)
 2. Create OAuth 2.0 Client ID with **Application type: Desktop app**
 3. Desktop apps support RFC 8252 loopback (`127.0.0.1` with any port) - no redirect URI registration needed
 
+For DCR tests, create a separate Web application client and supply `GOOGLE_TEST_DCR_CLIENT_ID` and `GOOGLE_TEST_DCR_CLIENT_SECRET`. Manual DCR integration tests also require `GOOGLE_TEST_DCR_REDIRECT_URI`, registered as an authorized redirect URI on that client. `npm run test:setup` generates loopback tokens and, when the DCR client ID is configured, separate DCR tokens.
+
 ### Environment Variables
 
-Copy `.env.test.example` to `.env.test` and configure:
+Supply these values through the shell or CI, or copy `.env.test.example` to `.env.test` for local configuration. Tests optionally load the file through `portable-env`; file values override matching inherited values. Enabled live tests require their necessary values, not the file itself.
 
 ```bash
 GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
+# Optional for public loopback clients
 GOOGLE_CLIENT_SECRET=your-client-secret
 
 # Enable manual OAuth tests (requires browser interaction)
@@ -90,17 +72,17 @@ See `README.md` for package overview and usage.
 
 ## GitHub Actions
 
-CI follows the Linux/Windows template used by each-package: Node 26, `npm ci`, `prepublishOnly`, a current-runtime test run, and the supported-engine sweep. macOS coverage runs locally. Pull requests receive no provider credentials.
+Trusted pushes to master and manual CI runs call this commit's Tests workflow on Ubuntu, then Windows. Each platform uses Node 26 for installation and validation, runs the full unattended suite with `npm test -- --bail`, then runs every admitted Node engine with `npm run test:engines -- --bail`. The package currently admits Node 18, 20, 22, 24 and 26; current-runtime execution is additional to that sweep. `test:ci` and `test:ci:engines` also retain full discovery. Environment-aware test entrypoints load their existing environment helper before dependent imports; package scripts do not preload it. Missing or invalid enabled credentials fail the trusted job.
 
-`npm run test:ci` and `npm run test:ci:engines` run the credential-free selection. They exclude `test/integration/dcr.test.ts`, `test/integration/dcr-refresh.test.ts`, `test/integration/loopback.test.ts`, `test/unit/providers/**`. These files require provider configuration, live services, or interactive consent; some also contain local checks. Their exclusion is a coverage gap until the separate live-service automation is provisioned.
+Pull requests receive no provider credentials and select exports, unit lib/setup, unit service-account, and integration PKCE files explicitly through the same canonical commands. This preserves the ten existing credential-free files. Mixed unit DCR and loopback files contain additional local cases whose current setup requires provider configuration or real token fixtures. Those local cases need a separate reviewed fixture correction before PR selection; their complete files run in trusted full discovery. A green PR check does not certify provider behavior.
 
-`npm test` and `npm run test:engines` retain full discovery. CI sets `TEST_INCLUDE_MANUAL=false`; consent tests require a person and run locally with `TEST_INCLUDE_MANUAL=true`. A green credential-free check does not certify live-provider behavior. Release evidence must include the configured live suites and relevant manual OAuth flows.
+`TEST_INCLUDE_MANUAL=false` leaves the two existing browser-consent tests pending. Those tests require a person and run locally with `TEST_INCLUDE_MANUAL=true`. Fresh browser consent is separate from unattended refresh-backed provider execution. Release evidence must include the configured live suites and relevant manual OAuth flows.
 
-### Live provider tests
+### Trusted tests
 
-Run the **Live provider tests** workflow from master, selecting Linux or Windows. It runs the full non-interactive suite once with `--bail`, without an engine matrix or automatic retries. Live runs are manual while request usage and service quotas are being measured. A green PR check covers only the credential-free selection above.
+The Tests workflow is reusable by CI and retains its master-only manual dispatch with a Linux/Windows choice. The existing token owner seeds this repository's loopback and DCR stores and service-account key file, runs current and admitted-engine tests, persists updates, and removes private runner files. Ubuntu failure prevents the automatic Windows job. The shared repository job concurrency group queues automatic and manual entrypoints without cancelling active runs; the lock covers seed through persistence and cleanup. The 90-minute platform timeout is a budget, not measured Google full-suite timing.
 
-This repository owns its `live-test` GitHub environment, restricted to master, and its own live-job concurrency group. There is no cross-repository coordinator. Concurrent runs in different repositories can still share provider quotas; avoid starting several against the same account at once. Browser consent tests remain local and opt-in.
+This repository owns its `live-test` GitHub environment, restricted to master. There is no cross-repository coordinator. Concurrent repositories can share provider quotas or grants; the maintainer must coordinate those account users. Browser consent and local setup remain outside the GitHub job lock. Forced cancellation, timeout and runner loss can prevent finalization despite always steps; inspect seed, persistence and cleanup results. The canonical engine sweep runs serially but continues to later engines after a failed runtime; bail stops only the current runtime. No automatic retry is configured.
 
 Configure these individual environment secrets from the existing test configuration and token stores:
 

@@ -13,6 +13,7 @@ import getPort from 'get-port';
 import Keyv from 'keyv';
 import { KeyvFile } from 'keyv-file';
 import * as path from 'path';
+import { requiredEnv } from 'portable-env';
 import * as dcrUtils from '../../src/lib/dcr-utils.ts';
 import type { AccessToken } from '../../src/types.ts';
 import { GOOGLE_SCOPE } from '../lib/constants.ts';
@@ -76,14 +77,11 @@ describe('DCR Router Refresh Tests (Google)', () => {
     }
 
     // DCR credentials - completely separate from loopback credentials
-    const clientId = process.env.GOOGLE_TEST_DCR_CLIENT_ID;
-    const clientSecret = process.env.GOOGLE_TEST_DCR_CLIENT_SECRET;
-    if (!clientId || !clientSecret) {
-      throw new Error('GOOGLE_TEST_DCR_CLIENT_ID and GOOGLE_TEST_DCR_CLIENT_SECRET environment variables required. Configure in .env.test');
-    }
+    const clientId = requiredEnv('GOOGLE_TEST_DCR_CLIENT_ID');
+    const clientSecret = requiredEnv('GOOGLE_TEST_DCR_CLIENT_SECRET');
 
     // Get dynamic port to avoid conflicts
-    const port = await getPort();
+    const port = await getPort({ host: '127.0.0.1' });
     const baseUrl = `http://127.0.0.1:${port}`;
     await mkdir(path.resolve('.tmp'), { recursive: true });
     serverStorePath = path.resolve('.tmp', `dcr-refresh-${randomUUID()}.json`);
@@ -264,14 +262,11 @@ describe('DCR Router Refresh Tests (Google)', () => {
     this.timeout(10000);
 
     // DCR credentials - completely separate from loopback credentials
-    const clientId = process.env.GOOGLE_TEST_DCR_CLIENT_ID;
-    const clientSecret = process.env.GOOGLE_TEST_DCR_CLIENT_SECRET;
-    if (!clientId || !clientSecret) {
-      throw new Error('GOOGLE_TEST_DCR_CLIENT_ID and GOOGLE_TEST_DCR_CLIENT_SECRET environment variables required. Configure in .env.test');
-    }
+    const clientId = requiredEnv('GOOGLE_TEST_DCR_CLIENT_ID');
+    const clientSecret = requiredEnv('GOOGLE_TEST_DCR_CLIENT_SECRET');
 
     // Get dynamic port to avoid conflicts
-    const port = await getPort();
+    const port = await getPort({ host: '127.0.0.1' });
     const baseUrl = `http://127.0.0.1:${port}`;
 
     // Start DCR test server
