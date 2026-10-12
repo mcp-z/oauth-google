@@ -8,6 +8,7 @@ import '../lib/env-loader.ts';
 import { createServerRegistry } from '@mcp-z/client';
 import assert from 'assert';
 import Keyv from 'keyv';
+import { requiredEnv } from 'portable-env';
 import { GOOGLE_SCOPE } from '../lib/constants.ts';
 import { startDcrTestServer } from '../lib/servers/dcr-test-server.ts';
 import { logger } from '../lib/test-utils.ts';
@@ -26,13 +27,9 @@ describe('DCR Integration Test (Google)', () => {
 
     // DCR credentials - completely separate from loopback credentials
     // Google Web app clients require client_secret for non-loopback redirect URIs
-    const clientId = process.env.GOOGLE_TEST_DCR_CLIENT_ID;
-    const clientSecret = process.env.GOOGLE_TEST_DCR_CLIENT_SECRET;
-    const redirectUri = process.env.GOOGLE_TEST_DCR_REDIRECT_URI;
-
-    if (!clientId || !clientSecret || !redirectUri) {
-      throw new Error('Google DCR integration test requires GOOGLE_TEST_DCR_CLIENT_ID, GOOGLE_TEST_DCR_CLIENT_SECRET, and GOOGLE_TEST_DCR_REDIRECT_URI environment variables.\n' + 'Configure DCR credentials in .env.test to run integration tests.');
-    }
+    const clientId = requiredEnv('GOOGLE_TEST_DCR_CLIENT_ID');
+    const clientSecret = requiredEnv('GOOGLE_TEST_DCR_CLIENT_SECRET');
+    const redirectUri = requiredEnv('GOOGLE_TEST_DCR_REDIRECT_URI');
 
     // Parse redirect URI to get base URL (strip /oauth/callback path)
     const redirectUrl = new URL(redirectUri);
@@ -120,12 +117,9 @@ describe('DCR Integration Test (Google)', () => {
     this.timeout(120000); // 2 minutes for manual OAuth flow
 
     // DCR credentials - completely separate from loopback credentials
-    const clientId = process.env.GOOGLE_TEST_DCR_CLIENT_ID;
-    const clientSecret = process.env.GOOGLE_TEST_DCR_CLIENT_SECRET;
-    const redirectUri = process.env.GOOGLE_TEST_DCR_REDIRECT_URI;
-    if (!clientId || !clientSecret || !redirectUri) {
-      throw new Error('GOOGLE_TEST_DCR_CLIENT_ID, GOOGLE_TEST_DCR_CLIENT_SECRET, and GOOGLE_TEST_DCR_REDIRECT_URI required');
-    }
+    const clientId = requiredEnv('GOOGLE_TEST_DCR_CLIENT_ID');
+    const clientSecret = requiredEnv('GOOGLE_TEST_DCR_CLIENT_SECRET');
+    const redirectUri = requiredEnv('GOOGLE_TEST_DCR_REDIRECT_URI');
 
     // Parse redirect URI to get base URL
     const redirectUrl = new URL(redirectUri);

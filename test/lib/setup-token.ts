@@ -14,6 +14,7 @@ import './env-loader.ts';
 import Keyv from 'keyv';
 import { KeyvFile } from 'keyv-file';
 import * as path from 'path';
+import { requiredEnv } from 'portable-env';
 import { LoopbackOAuthProvider } from '../../src/providers/loopback-oauth.ts';
 import { createConfig } from '../../src/setup/config.ts';
 import { GOOGLE_SCOPE } from './constants.ts';
@@ -82,13 +83,13 @@ async function setupToken(): Promise<void> {
   // Get DCR-specific credentials from environment
   // DCR uses a DIFFERENT client (Web app with confidential client) than loopback (Desktop app)
   const dcrClientId = process.env.GOOGLE_TEST_DCR_CLIENT_ID;
-  const dcrClientSecret = process.env.GOOGLE_TEST_DCR_CLIENT_SECRET;
 
   if (!dcrClientId) {
     console.log('⚠️  Skipping DCR token setup - GOOGLE_TEST_DCR_CLIENT_ID not set');
     console.log('   Set GOOGLE_TEST_DCR_CLIENT_ID and GOOGLE_TEST_DCR_CLIENT_SECRET in .env.test to enable DCR testing');
     console.log('');
   } else {
+    const dcrClientSecret = requiredEnv('GOOGLE_TEST_DCR_CLIENT_SECRET');
     // Check for existing DCR tokens
     let existingDcrToken = await loadDcrTokens();
 
