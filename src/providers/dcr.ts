@@ -11,6 +11,7 @@
 import type { ProviderTokens } from '@mcp-z/oauth';
 import { ProtocolError, ProtocolErrorCode } from '@modelcontextprotocol/server';
 import { createRefreshedToken } from '../lib/create-refreshed-token.ts';
+import { ProviderRefreshError } from '../lib/provider-refresh-error.ts';
 import type { AuthContext, EnrichedExtra, GoogleAuthProvider, Logger } from '../types.ts';
 
 /**
@@ -145,7 +146,7 @@ export class DcrOAuthProvider {
 
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`Token refresh failed: ${response.status} ${errorText}`);
+      throw new ProviderRefreshError(response.status, errorText);
     }
 
     const tokenResponse = (await response.json()) as TokenResponse;
