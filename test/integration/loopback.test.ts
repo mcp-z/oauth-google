@@ -347,11 +347,8 @@ describe('LoopbackOAuthProvider Integration Tests', () => {
       });
 
       const allKeys: string[] = [];
-      const iterator = testTokenStore.iterator?.(undefined);
-      if (iterator) {
-        for await (const [key] of iterator) {
-          allKeys.push(key);
-        }
+      for await (const [key] of testTokenStore.iterator()) {
+        allKeys.push(key);
       }
 
       const gmailTokenKey = allKeys.find((k) => k.includes(':gmail:token') && !k.includes('user-'));
@@ -379,11 +376,8 @@ describe('LoopbackOAuthProvider Integration Tests', () => {
 
     // Clear token store before each test for isolation
     beforeEach(async () => {
-      const iterator = sharedTokenStore.iterator?.(undefined);
-      if (iterator) {
-        for await (const [key] of iterator) {
-          await sharedTokenStore.delete(key);
-        }
+      for await (const [key] of sharedTokenStore.iterator()) {
+        await sharedTokenStore.delete(key);
       }
     });
 

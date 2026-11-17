@@ -114,8 +114,8 @@ jobs:
           TEST_DCR_SCOPE: ${{ secrets.TEST_DCR_SCOPE }}
           GOOGLE_TEST_DCR_CLIENT_ID: ${{ secrets.GOOGLE_TEST_DCR_CLIENT_ID }}
           GOOGLE_TEST_DCR_CLIENT_SECRET: ${{ secrets.GOOGLE_TEST_DCR_CLIENT_SECRET }}
-          TEST_INCLUDE_MANUAL: 'false'
-          HEADLESS: 'true'
+          TEST_INCLUDE_MANUAL: "false"
+          HEADLESS: "true"
           GOOGLE_SERVICE_ACCOUNT_KEY_FILE: ${{ github.workspace }}/service-account.test.json
       - name: Engines
         run: npm run test:engines -- --bail
