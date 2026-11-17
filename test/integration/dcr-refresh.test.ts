@@ -6,6 +6,7 @@
  */
 
 import '../lib/env-loader.ts';
+import { dcrUtils } from '@mcp-z/oauth';
 import assert from 'assert';
 import { randomUUID } from 'crypto';
 import { mkdir, unlink } from 'fs/promises';
@@ -14,10 +15,12 @@ import Keyv from 'keyv';
 import { KeyvFile } from 'keyv-file';
 import * as path from 'path';
 import { requiredEnv } from 'portable-env';
-import * as dcrUtils from '../../src/lib/dcr-utils.ts';
 import type { AccessToken } from '../../src/types.ts';
 import { GOOGLE_SCOPE } from '../lib/constants.ts';
 import { startDcrTestServer } from '../lib/servers/dcr-test-server.ts';
+
+/** keyv 6 getRaw returns `{ value, expires }`; read the absolute expiry from it. */
+const expiryOf = (record: unknown): number | undefined => (typeof record === 'object' && record !== null ? (record as { expires?: number }).expires : undefined);
 
 interface DcrTokenData {
   clientId: string;
@@ -195,9 +198,9 @@ describe('DCR Router Refresh Tests (Google)', () => {
     await dcrUtils.setAccessToken(serverStore, tokenData.access_token, expiringTokenData);
     await dcrUtils.setRefreshToken(serverStore, refreshToken, expiringTokenData);
     await dcrUtils.setProviderTokens(serverStore, tokenData.access_token, expiringTokenData.providerTokens);
-    const accessExpiryBefore = (await serverStore.get<AccessToken>(`dcr:access:${tokenData.access_token}`, { raw: true }))?.expires;
-    const refreshExpiryBefore = (await serverStore.get<AccessToken>(`dcr:refresh:${refreshToken}`, { raw: true }))?.expires;
-    const providerExpiryBefore = (await serverStore.get(`dcr:provider:${tokenData.access_token}`, { raw: true }))?.expires;
+    const accessExpiryBefore = expiryOf(await serverStore.getRaw<AccessToken>(`dcr:access:${tokenData.access_token}`));
+    const refreshExpiryBefore = expiryOf(await serverStore.getRaw<AccessToken>(`dcr:refresh:${refreshToken}`));
+    const providerExpiryBefore = expiryOf(await serverStore.getRaw(`dcr:provider:${tokenData.access_token}`));
     if (accessExpiryBefore === undefined || refreshExpiryBefore === undefined || providerExpiryBefore === undefined) {
       throw new Error('Expected file-backed DCR records to include expiry metadata');
     }
@@ -225,10 +228,10 @@ describe('DCR Router Refresh Tests (Google)', () => {
       await sourceStore.disconnect();
     }
 
-    const accessAfter = await serverStore.get<AccessToken>(`dcr:access:${tokenData.access_token}`, { raw: true });
-    const refreshAfter = await serverStore.get<AccessToken>(`dcr:refresh:${refreshToken}`, { raw: true });
-    const providerAfter = await serverStore.get(`dcr:provider:${tokenData.access_token}`, { raw: true });
-    if (accessAfter?.expires === undefined || refreshAfter?.expires === undefined || providerAfter?.expires === undefined) {
+    const accessAfter = await serverStore.getRaw<AccessToken>(`dcr:access:${tokenData.access_token}`);
+    const refreshAfter = await serverStore.getRaw<AccessToken>(`dcr:refresh:${refreshToken}`);
+    const providerAfter = await serverStore.getRaw(`dcr:provider:${tokenData.access_token}`);
+    if (expiryOf(accessAfter) === undefined || expiryOf(refreshAfter) === undefined || expiryOf(providerAfter) === undefined) {
       throw new Error('Refreshed file-backed DCR records must retain expiry metadata');
     }
 
@@ -236,9 +239,9 @@ describe('DCR Router Refresh Tests (Google)', () => {
     assert.ok(verifyData.providerTokens.accessToken, 'Should have provider access token');
     assert.ok(renewed.created_at === accessBeforeVerify.created_at, 'Provider refresh must preserve DCR token created_at');
     assert.ok(renewed.expires_in === accessBeforeVerify.expires_in, 'Provider refresh must preserve DCR token expires_in');
-    assert.ok(accessAfter.expires <= accessExpiryBefore + 500, 'Verification must not extend the access-token store expiry');
-    assert.ok(refreshAfter.expires <= refreshExpiryBefore + 500, 'Verification must not extend the refresh-token store expiry');
-    assert.ok(providerAfter.expires <= providerExpiryBefore + 500, 'Verification must not extend the provider-token index expiry');
+    assert.ok((expiryOf(accessAfter) ?? Number.POSITIVE_INFINITY) <= accessExpiryBefore + 500, 'Verification must not extend the access-token store expiry');
+    assert.ok((expiryOf(refreshAfter) ?? Number.POSITIVE_INFINITY) <= refreshExpiryBefore + 500, 'Verification must not extend the refresh-token store expiry');
+    assert.ok((expiryOf(providerAfter) ?? Number.POSITIVE_INFINITY) <= providerExpiryBefore + 500, 'Verification must not extend the provider-token index expiry');
     const renewedAccess = await dcrUtils.getAccessToken(serverStore, tokenData.access_token);
     assert.ok(renewedAccess?.providerTokens.accessToken === renewed.providerTokens.accessToken, 'Access record must persist the refreshed provider access token');
     assert.ok(renewedAccess?.providerTokens.refreshToken === renewed.providerTokens.refreshToken, 'Access record must persist the provider refresh token');

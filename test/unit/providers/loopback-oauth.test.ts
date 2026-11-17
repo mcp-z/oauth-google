@@ -69,11 +69,8 @@ before(async () => {
 
   // Find test account
   const allKeys: string[] = [];
-  const iterator = testTokenStore.iterator?.(undefined);
-  if (iterator) {
-    for await (const [key] of iterator) {
-      allKeys.push(key);
-    }
+  for await (const [key] of testTokenStore.iterator()) {
+    allKeys.push(key);
   }
 
   const gmailTokenKey = allKeys.find((k) => k.includes(':gmail:token') && !k.includes('user-'));
@@ -94,13 +91,10 @@ before(async () => {
     store: new KeyvFile({ filename: tempTokenStorePath }),
   });
   // Copy token keys from real store into temp store (avoid active/linked keys).
-  const testIterator = testTokenStore.iterator?.(undefined);
-  if (testIterator) {
-    for await (const [key, value] of testIterator) {
-      const keyString = String(key);
-      if (keyString.includes(':token')) {
-        await tempTokenStore.set(keyString, value);
-      }
+  for await (const [key, value] of testTokenStore.iterator()) {
+    const keyString = String(key);
+    if (keyString.includes(':token')) {
+      await tempTokenStore.set(keyString, value);
     }
   }
   sharedTokenStore = tempTokenStore;

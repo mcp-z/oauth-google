@@ -4,7 +4,7 @@
  */
 
 // Shared types from base @mcp-z/oauth package
-import type { AuthFlowDescriptor, CachedToken, DcrClientInformation, DcrClientMetadata, Logger, OAuth2TokenStorageProvider, ProviderTokens, ToolHandler, ToolModule, UserAuthProvider } from '@mcp-z/oauth';
+import type { AccessToken, AuthFlowDescriptor, AuthorizationCode, CachedToken, DcrClientInformation, DcrClientMetadata, Logger, OAuth2TokenStorageProvider, ProviderTokens, RegisteredClient, ToolHandler, ToolModule, UserAuthProvider } from '@mcp-z/oauth';
 import type { ServerContext } from '@modelcontextprotocol/server';
 import type { Keyv } from 'keyv';
 
@@ -12,7 +12,7 @@ import type { Keyv } from 'keyv';
 export { AuthRequiredError } from '@mcp-z/oauth';
 // Re-export only essential shared types for public API
 // Re-export additional types for internal package use
-export type { AuthFlowDescriptor, CachedToken, DcrClientInformation, DcrClientMetadata, Logger, OAuth2TokenStorageProvider, ProviderTokens, ServerContext, ToolHandler, ToolModule, UserAuthProvider };
+export type { AccessToken, AuthFlowDescriptor, AuthorizationCode, CachedToken, DcrClientInformation, DcrClientMetadata, Logger, OAuth2TokenStorageProvider, ProviderTokens, RegisteredClient, ServerContext, ToolHandler, ToolModule, UserAuthProvider };
 
 /**
  * Google service types that support OAuth
@@ -173,57 +173,6 @@ export interface EnrichedExtra extends ServerContext {
     accountId?: string;
     [key: string]: unknown;
   };
-}
-
-// =============================================================================
-// DCR Internal Types
-// =============================================================================
-
-/**
- * Registered client with full metadata
- * Extends DcrClientInformation with internal timestamps
- * @internal
- */
-export interface RegisteredClient extends DcrClientInformation {
-  /** Creation timestamp (milliseconds since epoch) */
-  created_at: number;
-}
-
-/**
- * Authorization code data structure
- * @public
- */
-export interface AuthorizationCode {
-  code: string;
-  client_id: string;
-  redirect_uri: string;
-  scope: string;
-  code_challenge?: string;
-  code_challenge_method?: string;
-  /** Set for CIMD public clients; absent for DCR registrations. */
-  client_type?: 'cimd';
-  /** Google provider tokens obtained during authorization */
-  providerTokens: ProviderTokens;
-  created_at: number;
-  expires_at: number;
-}
-
-/**
- * Access token data structure
- * @public
- */
-export interface AccessToken {
-  access_token: string;
-  token_type: 'Bearer';
-  expires_in: number;
-  refresh_token?: string;
-  scope: string;
-  client_id: string;
-  /** Set for CIMD public clients; absent for DCR registrations. */
-  client_type?: 'cimd';
-  /** Google provider tokens */
-  providerTokens: ProviderTokens;
-  created_at: number;
 }
 
 // =============================================================================
