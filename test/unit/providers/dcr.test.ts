@@ -193,9 +193,7 @@ it('DcrOAuthProvider - toAuthProvider handles tokens without refresh token', asy
 
 // Integration tests with real Google endpoints (require tokens from test-setup)
 describe('DcrOAuthProvider - Integration with Google APIs', () => {
-  it('should refresh provider tokens with real Google endpoint', async function () {
-    this.timeout(30000);
-
+  it('should refresh provider tokens with real Google endpoint', async () => {
     // Load stored DCR tokens from test-setup
     const dcrTokenPath = path.join(process.cwd(), '.tokens/dcr.json');
     const dcrStore = new Keyv({
@@ -263,9 +261,7 @@ describe('DcrOAuthProvider - Integration with Google APIs', () => {
     console.log(`✅ Verified - user email: ${email}`);
   });
 
-  it('should fail refresh with invalid token', async function () {
-    this.timeout(10000);
-
+  it('should fail refresh with invalid token', async () => {
     // Use DCR test credentials
     const dcrClientId = requiredEnv('GOOGLE_TEST_DCR_CLIENT_ID');
     const dcrClientSecret = requiredEnv('GOOGLE_TEST_DCR_CLIENT_SECRET');

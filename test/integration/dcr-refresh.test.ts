@@ -22,6 +22,9 @@ import { startDcrTestServer } from '../lib/servers/dcr-test-server.ts';
 /** keyv 6 getRaw returns `{ value, expires }`; read the absolute expiry from it. */
 const expiryOf = (record: unknown): number | undefined => (typeof record === 'object' && record !== null ? (record as { expires?: number }).expires : undefined);
 
+/** Status for every message; the body only when the response failed, since a success body holds tokens. */
+const failure = (response: Response, body: string): string => (response.ok ? `HTTP ${response.status}` : `HTTP ${response.status}: ${body}`);
+
 interface DcrTokenData {
   clientId: string;
   clientSecret: string;
@@ -70,9 +73,7 @@ describe('DCR Router Refresh Tests (Google)', () => {
     }
   });
 
-  it('should refresh DCR token and return new access token', async function () {
-    this.timeout(30000);
-
+  it('should refresh DCR token and return new access token', async () => {
     // Load stored tokens from test-setup
     const storedTokens = await loadDcrTokens();
     if (!storedTokens) {
@@ -150,9 +151,10 @@ describe('DCR Router Refresh Tests (Google)', () => {
       }).toString(),
     });
 
-    assert.ok(tokenResponse.ok, `Token refresh should succeed, got ${tokenResponse.status}`);
+    const tokenBody = await tokenResponse.text();
+    assert.ok(tokenResponse.ok, `Token refresh should succeed (${failure(tokenResponse, tokenBody)})`);
 
-    const tokenData = (await tokenResponse.json()) as {
+    const tokenData = JSON.parse(tokenBody) as {
       access_token: string;
       token_type: string;
       expires_in: number;
@@ -210,8 +212,9 @@ describe('DCR Router Refresh Tests (Google)', () => {
       headers: { Authorization: `Bearer ${tokenData.access_token}` },
     });
 
-    assert.ok(verifyResponse.ok, 'New token should be verifiable');
-    const verifyData = (await verifyResponse.json()) as {
+    const verifyBody = await verifyResponse.text();
+    assert.ok(verifyResponse.ok, `New token should be verifiable (${failure(verifyResponse, verifyBody)})`);
+    const verifyData = JSON.parse(verifyBody) as {
       token: string;
       providerTokens: { accessToken: string; refreshToken?: string; expiresAt?: number };
     };
@@ -253,17 +256,16 @@ describe('DCR Router Refresh Tests (Google)', () => {
     const nextVerifyResponse = await fetch(`${baseUrl}/oauth/verify`, {
       headers: { Authorization: `Bearer ${tokenData.access_token}` },
     });
-    assert.ok(nextVerifyResponse.ok, 'The next request must verify successfully');
-    const nextVerifyData = (await nextVerifyResponse.json()) as { providerTokens: { accessToken: string; refreshToken?: string } };
+    const nextVerifyBody = await nextVerifyResponse.text();
+    assert.ok(nextVerifyResponse.ok, `The next request must verify successfully (${failure(nextVerifyResponse, nextVerifyBody)})`);
+    const nextVerifyData = JSON.parse(nextVerifyBody) as { providerTokens: { accessToken: string; refreshToken?: string } };
     assert.ok(nextVerifyData.providerTokens.accessToken === verifyData.providerTokens.accessToken, 'The next request must reuse the persisted provider access token');
     assert.ok(nextVerifyData.providerTokens.refreshToken === verifyData.providerTokens.refreshToken, 'The next request must reuse the persisted provider refresh token');
     console.log('✅ New token verified successfully');
     console.log('✅ Router refresh test passed!');
   });
 
-  it('should fail refresh with invalid refresh_token', async function () {
-    this.timeout(10000);
-
+  it('should fail refresh with invalid refresh_token', async () => {
     // DCR credentials - completely separate from loopback credentials
     const clientId = requiredEnv('GOOGLE_TEST_DCR_CLIENT_ID');
     const clientSecret = requiredEnv('GOOGLE_TEST_DCR_CLIENT_SECRET');
@@ -307,9 +309,10 @@ describe('DCR Router Refresh Tests (Google)', () => {
       }).toString(),
     });
 
-    assert.strictEqual(tokenResponse.status, 400, 'Should return 400 for invalid refresh token');
+    const errorBody = await tokenResponse.text();
+    assert.strictEqual(tokenResponse.status, 400, `Should return 400 for invalid refresh token (${failure(tokenResponse, errorBody)})`);
 
-    const errorData = (await tokenResponse.json()) as { error: string; error_description?: string };
+    const errorData = JSON.parse(errorBody) as { error: string; error_description?: string };
     assert.strictEqual(errorData.error, 'invalid_grant', 'Should return invalid_grant error');
     console.log('✅ Invalid refresh token correctly rejected');
   });

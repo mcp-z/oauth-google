@@ -1,5 +1,15 @@
 # Changelog
 
+## [2.4.4] - 2026-11-20
+
+### Fixed
+
+- `DcrTokenVerifier.verifyAccessToken` and `verifyBearerToken` keep their 30 second bound while reading the response, so a verify endpoint that sends headers and then stalls fails with `Request timeout after 30000ms` instead of holding the request open.
+
+### Deprecated
+
+- `DcrConfig.mode` and `DcrConfig.verifyUrl` are marked `@deprecated`: no mcp-z server reads them. They still parse and type-check as before.
+
 ## [2.4.3] - 2026-11-19
 
 ### Fixed
