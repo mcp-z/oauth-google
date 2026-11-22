@@ -9,6 +9,7 @@ import type { AddressInfo } from 'net';
 import { createFailingStore } from '../../lib/failing-store.ts';
 import { redirectFetch } from '../../lib/redirect-fetch.ts';
 import { logger } from '../../lib/test-utils.ts';
+import { waitFor } from '../../lib/wait-for.ts';
 
 const baseConfig = { service: 'gmail' as const, clientId: 'test-client', scope: 'openid', headless: false };
 
@@ -325,6 +326,118 @@ describe('unit/loopback-oauth-store-failures', () => {
       assert.strictEqual(response.status, 500);
       assertRejected(outcome, /Token exchange failed: 400.*invalid_grant/);
       assert.ok(!(outcome.error as Error).message.includes('rejected-code'), 'the code must not appear in the message');
+    });
+
+    it('rejects the waiting call at once when consent is cancelled', async () => {
+      const { state, outcome } = await startPersistentSignIn();
+
+      const response = await fetch(`${callbackBase}/oauth/callback?error=access_denied&error_description=${encodeURIComponent('The user denied access')}&state=${state}`);
+      await response.text();
+
+      assert.strictEqual(response.status, 400);
+      assertRejected(outcome, /^OAuth error: access_denied: The user denied access$/);
+    });
+
+    it('rejects the waiting call at once when the callback carries no code', async () => {
+      const { state, outcome } = await startPersistentSignIn();
+
+      const response = await fetch(`${callbackBase}/oauth/callback?state=${state}`);
+      await response.text();
+
+      assert.strictEqual(response.status, 400);
+      assertRejected(outcome, /^No authorization code received$/);
+    });
+
+    // A failed callback that names no open sign-in fails nothing: the real sign-in then completes and the waiter resolves.
+    async function assertStillWaiting(state: string, outcome: { settled: boolean; value?: unknown; error?: unknown }) {
+      assert.ok(!outcome.settled, 'a callback that names no open sign-in must not settle the waiting call');
+      const good = await fetch(`${callbackBase}/oauth/callback?code=good-code&state=${state}`);
+      await good.text();
+      assert.strictEqual(good.status, 200);
+      await waitFor(() => outcome.settled);
+      assert.strictEqual(outcome.error, undefined);
+      assert.deepStrictEqual(outcome.value, { email: 'a@example.com' });
+    }
+
+    it('fails nothing when a cancelled consent callback has no state', async () => {
+      const { state, outcome } = await startPersistentSignIn();
+
+      const response = await fetch(`${callbackBase}/oauth/callback?error=access_denied`);
+      await response.text();
+
+      assert.strictEqual(response.status, 400);
+      await assertStillWaiting(state, outcome);
+    });
+
+    it('fails nothing when a cancelled consent callback has a state that is not open', async () => {
+      const { state, outcome } = await startPersistentSignIn();
+
+      const response = await fetch(`${callbackBase}/oauth/callback?error=access_denied&state=unknown-state`);
+      await response.text();
+
+      assert.strictEqual(response.status, 400);
+      await assertStillWaiting(state, outcome);
+    });
+
+    it('resolves the waiting call when a cancelled consent callback follows a completed sign-in', async () => {
+      const { state, outcome } = await startPersistentSignIn();
+      const first = await fetch(`${callbackBase}/oauth/callback?code=good-code&state=${state}`);
+      await first.text();
+
+      const second = await fetch(`${callbackBase}/oauth/callback?error=access_denied&state=${state}`);
+      await second.text();
+
+      assert.strictEqual(first.status, 200);
+      assert.strictEqual(second.status, 400);
+      await waitFor(() => outcome.settled);
+      assert.strictEqual(outcome.error, undefined, 'a completed sign-in must not be reported as failed');
+      assert.deepStrictEqual(outcome.value, { email: 'a@example.com' });
+    });
+
+    describe('failOAuthCallback', () => {
+      // No response is read here, so each spec waits for the waiter to settle before asserting on it.
+      it('rejects the waiting call for an open state', async () => {
+        const { state, outcome } = await startPersistentSignIn();
+
+        provider.failOAuthCallback({ state, error: 'access_denied', errorDescription: 'The user denied access' });
+        await waitFor(() => outcome.settled);
+
+        assertRejected(outcome, /^OAuth error: access_denied: The user denied access$/);
+      });
+
+      it('records the provider error without a description', async () => {
+        const { state, outcome } = await startPersistentSignIn();
+
+        provider.failOAuthCallback({ state, error: 'access_denied' });
+        await waitFor(() => outcome.settled);
+
+        assertRejected(outcome, /^OAuth error: access_denied$/);
+      });
+
+      it('records a missing code when no error is given', async () => {
+        const { state, outcome } = await startPersistentSignIn();
+
+        provider.failOAuthCallback({ state });
+        await waitFor(() => outcome.settled);
+
+        assertRejected(outcome, /^No authorization code received$/);
+      });
+
+      it('does nothing without a state', async () => {
+        const { state, outcome } = await startPersistentSignIn();
+
+        provider.failOAuthCallback({ error: 'access_denied' });
+
+        await assertStillWaiting(state, outcome);
+      });
+
+      it('does nothing for a state that is not open', async () => {
+        const { state, outcome } = await startPersistentSignIn();
+
+        provider.failOAuthCallback({ state: 'unknown-state', error: 'access_denied' });
+
+        await assertStillWaiting(state, outcome);
+      });
     });
   });
 });
