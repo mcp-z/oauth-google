@@ -10,7 +10,6 @@ import { dcrUtils } from '@mcp-z/oauth';
 import assert from 'assert';
 import { randomUUID } from 'crypto';
 import { mkdir, unlink } from 'fs/promises';
-import getPort from 'get-port';
 import Keyv from 'keyv';
 import { KeyvFile } from 'keyv-file';
 import * as path from 'path';
@@ -84,23 +83,19 @@ describe('DCR Router Refresh Tests (Google)', () => {
     const clientId = requiredEnv('GOOGLE_TEST_DCR_CLIENT_ID');
     const clientSecret = requiredEnv('GOOGLE_TEST_DCR_CLIENT_SECRET');
 
-    // Get dynamic port to avoid conflicts
-    const port = await getPort({ host: '127.0.0.1' });
-    const baseUrl = `http://127.0.0.1:${port}`;
     await mkdir(path.resolve('.tmp'), { recursive: true });
     serverStorePath = path.resolve('.tmp', `dcr-refresh-${randomUUID()}.json`);
     const persistentStore = new Keyv({ store: new KeyvFile({ filename: serverStorePath }) });
 
     // Start DCR test server
     const serverResult = await startDcrTestServer({
-      port,
-      baseUrl,
       scopes: [GOOGLE_SCOPE],
       clientId,
       clientSecret,
       store: persistentStore,
     });
     dcrCleanup = serverResult.close;
+    const baseUrl = serverResult.url;
     serverStore = serverResult.store;
     activeServerStore = serverStore;
 
@@ -270,19 +265,14 @@ describe('DCR Router Refresh Tests (Google)', () => {
     const clientId = requiredEnv('GOOGLE_TEST_DCR_CLIENT_ID');
     const clientSecret = requiredEnv('GOOGLE_TEST_DCR_CLIENT_SECRET');
 
-    // Get dynamic port to avoid conflicts
-    const port = await getPort({ host: '127.0.0.1' });
-    const baseUrl = `http://127.0.0.1:${port}`;
-
     // Start DCR test server
     const serverResult = await startDcrTestServer({
-      port,
-      baseUrl,
       scopes: [GOOGLE_SCOPE],
       clientId,
       clientSecret,
     });
     dcrCleanup = serverResult.close;
+    const baseUrl = serverResult.url;
     serverStore = serverResult.store;
     activeServerStore = serverStore;
 
