@@ -113,26 +113,20 @@ describe('LoopbackOAuthProvider Integration Tests', () => {
 
       const token = await auth.toAuthProvider().getAccessToken(); // Use active account (set by test:setup)
 
-      // Create a test spreadsheet
-      const created = await sheetsFor(token).spreadsheets.create({ requestBody: { properties: { title: 'OAuth Test Spreadsheet' } } });
+      // 44 zeros: the right length for a spreadsheet id but not a value Google ever issues, so the lookup finds nothing and creates nothing.
+      const spreadsheetId = '0'.repeat(44);
 
-      assert.ok(created.data.spreadsheetId, 'Should create spreadsheet');
-
-      const spreadsheetId = created.data.spreadsheetId;
-      if (!spreadsheetId) {
-        throw new Error('Expected spreadsheetId in create response');
-      }
-
+      // A token without Sheets permission is refused (403, insufficient scopes) before the lookup; a 404 therefore proves the scope reached the Sheets API.
+      let failure: { response?: { status?: number; data?: { error?: { status?: string } } } } | undefined;
       try {
-        // Verify we can read it back
-        const fetched = await sheetsFor(token).spreadsheets.get({ spreadsheetId });
-
-        assert.ok(fetched.data, 'Should get spreadsheet data');
-        assert.strictEqual(fetched.data.properties?.title, 'OAuth Test Spreadsheet');
-      } finally {
-        // Clean up - delete the test spreadsheet
-        await driveFor(token).files.delete({ fileId: spreadsheetId });
+        await sheetsFor(token).spreadsheets.get({ spreadsheetId });
+      } catch (error) {
+        failure = error as typeof failure;
       }
+
+      assert.ok(failure, 'Looking up a spreadsheet that cannot exist should be refused');
+      assert.strictEqual(failure.response?.status, 404, 'Google should answer 404 not found, not 401 or 403');
+      assert.strictEqual(failure.response?.data?.error?.status, 'NOT_FOUND', 'Google should give the reason NOT_FOUND');
     });
   });
 
